@@ -1,20 +1,24 @@
 #![allow(dead_code)]
 
+use std::any::Any;
+
 use iced::{
-    Alignment, Color, Element, Length, Padding, Rectangle, Renderer, Size, Theme,
+    Alignment, Color, Element, Event, Length, Padding, Rectangle, Renderer, Size, Theme,
     advanced::{
-        Layout, Widget,
+        Clipboard, Layout, Shell, Widget,
         layout::{self, Limits, Node, flex::Axis},
         mouse::{Cursor, Interaction},
         overlay,
         renderer::Style,
         widget::{
-            Operation, Tree,
+            Id, Operation, Tree,
             tree::{State, Tag},
         },
     },
+    event, mouse,
     time::Duration,
     widget::{column, text},
+    window::Event::RedrawRequested,
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -32,15 +36,18 @@ impl std::fmt::Display for Level {
 }
 
 #[derive(Clone, Debug)]
-struct Toast {
+pub struct Toast {
     level: Level,
     message: String,
     // TODO: Add a button (closure produces a message)
 }
 
 impl Toast {
-    pub fn new(level: Level, message: String) -> Self {
-        Toast { level, message }
+    pub fn new(level: Level, message: &str) -> Self {
+        Toast {
+            level,
+            message: message.to_string(),
+        }
     }
 }
 
@@ -66,8 +73,9 @@ pub struct Manager<'a, Message> {
 impl<'a, Message: 'a> Manager<'a, Message> {
     pub fn new(content: impl Into<Element<'a, Message>>) -> Self {
         // TODO: Remove this and initialise with the empty vec
-        let example_toast = Toast::new(Level::Success, "Nice!".to_string());
-        let toasts: Vec<Toast> = vec![example_toast];
+        let example_toast1 = Toast::new(Level::Success, "Nice!");
+        let example_toast2 = Toast::new(Level::Warning, "Nice 2!");
+        let toasts: Vec<Toast> = vec![example_toast1, example_toast2];
         let toast_elements: Vec<Element<'a, Message>> = toasts
             .clone()
             .into_iter()
@@ -82,15 +90,17 @@ impl<'a, Message: 'a> Manager<'a, Message> {
     }
 }
 
-impl<Message> Widget<Message, Theme, Renderer> for Manager<'_, Message> {
+impl<'a, Message: 'a> Widget<Message, Theme, Renderer> for Manager<'a, Message> {
     fn size(&self) -> Size<Length> {
         self.content.as_widget().size()
     }
 
     fn layout(&self, tree: &mut Tree, renderer: &Renderer, limits: &Limits) -> Node {
-        self.content
-            .as_widget()
-            .layout(&mut tree.children[0], renderer, limits)
+        layout::contained(limits, Length::Shrink, Length::Shrink, |limits| {
+            self.content
+                .as_widget()
+                .layout(&mut tree.children[0], renderer, limits)
+        })
     }
 
     fn draw(
@@ -120,9 +130,10 @@ impl<Message> Widget<Message, Theme, Renderer> for Manager<'_, Message> {
 
     fn state(&self) -> State {
         // TODO: Initialise with the empty state
-        let example_toast = Toast::new(Level::Success, "Nice!".to_string());
-        let toasts: Vec<Toast> = vec![example_toast];
-        State::Some(Box::new(toasts))
+        let example_toast1 = Toast::new(Level::Success, "Nice!");
+        let example_toast2 = Toast::new(Level::Warning, "Nice 2!");
+        let toasts: Vec<Toast> = vec![example_toast1, example_toast2];
+        State::new(toasts)
     }
 
     fn children(&self) -> Vec<Tree> {
@@ -132,6 +143,9 @@ impl<Message> Widget<Message, Theme, Renderer> for Manager<'_, Message> {
     }
 
     fn diff(&self, tree: &mut Tree) {
+        // TODO: The matching algorithm for toasts seems a little suspicious,
+        // we truncate off the end if there are less toasts. Check this is
+        // fine? Otherwise we could try diff_children_custom.
         tree.diff_children(
             &std::iter::once(&self.content)
                 .chain(self.toast_elements.iter())
@@ -146,12 +160,62 @@ impl<Message> Widget<Message, Theme, Renderer> for Manager<'_, Message> {
         renderer: &Renderer,
         operation: &mut dyn Operation,
     ) {
-        // TODO: Update this to consume push_toast operations (whatever that means)
         operation.container(None, layout.bounds(), &mut |operation| {
             self.content
                 .as_widget()
                 .operate(&mut state.children[0], layout, renderer, operation);
         });
+
+        // Handle operations for pushing toasts
+        let manager_id = Id::new(MANAGER_ID);
+        operation.custom(&mut state.state, Some(&manager_id));
+    }
+
+    fn on_event(
+        &mut self,
+        tree: &mut Tree,
+        event: Event,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        renderer: &Renderer,
+        clipboard: &mut dyn Clipboard,
+        shell: &mut Shell<'_, Message>,
+        viewport: &Rectangle,
+    ) -> event::Status {
+        // README: Unfortunately I might have to scrap this idea. I can't figure
+        // out how to trigger this `RedrawRequested` event after an operation is
+        // processed. This means that it is possible that we successfully add a
+        // toast, but it won't show up until we send another event (e.g. we
+        // move the mouse a little).
+
+        if let Event::Window(RedrawRequested(_)) = event {
+            // Update all toasts in state tree to match the state.
+            let toasts = tree.state.downcast_ref::<Vec<Toast>>();
+            let children = toasts
+                .clone()
+                .into_iter()
+                .map(|toast| toast.clone().into())
+                .map(|element: Element<'a, Message>| Tree::new(element))
+                .collect::<Vec<Tree>>();
+
+            tree.children.truncate(1);
+            tree.children.extend(children);
+
+            // TODO: Only invalidate layout if the toasts have changed
+            shell.invalidate_layout();
+            shell.invalidate_widgets();
+        }
+
+        self.content.as_widget_mut().on_event(
+            &mut tree.children[0],
+            event,
+            layout.children().next().unwrap(),
+            cursor,
+            renderer,
+            clipboard,
+            shell,
+            viewport,
+        )
     }
 
     fn mouse_interaction(
@@ -171,13 +235,13 @@ impl<Message> Widget<Message, Theme, Renderer> for Manager<'_, Message> {
         )
     }
 
-    fn overlay<'a>(
-        &'a mut self,
-        state: &'a mut Tree,
+    fn overlay<'b>(
+        &'b mut self,
+        state: &'b mut Tree,
         layout: Layout<'_>,
         renderer: &Renderer,
         translation: iced::Vector,
-    ) -> Option<overlay::Element<'a, Message, Theme, Renderer>> {
+    ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
         let (content_state, toast_state) = state.children.split_at_mut(1);
         let content_overlay = self.content.as_widget_mut().overlay(
             &mut content_state[0],
@@ -187,7 +251,13 @@ impl<Message> Widget<Message, Theme, Renderer> for Manager<'_, Message> {
         );
 
         // TODO: Remove expired toasts
-        // TODO: Update self.toast_elements based on state.
+
+        let toasts = state.state.downcast_ref::<Vec<Toast>>();
+        self.toast_elements = toasts
+            .clone()
+            .into_iter()
+            .map(|toast| toast.into())
+            .collect();
 
         let toast_overlay = (!self.toast_elements.is_empty()).then(|| {
             let toast_overlay = Overlay::new(&mut self.toast_elements, toast_state);
@@ -261,7 +331,36 @@ impl<'a, Message> overlay::Overlay<Message, Theme, Renderer> for Overlay<'a, '_,
     }
 }
 
-pub fn push_toast() -> () {
-    // Creates an operation task, which updates the widget state
-    todo!()
+// Used by operations to identify the manager widget.
+const MANAGER_ID: &str = "iced_toast_manager";
+
+pub struct PushToastOperation {
+    toast: Toast,
+}
+
+impl PushToastOperation {
+    pub fn new(toast: Toast) -> Self {
+        Self { toast }
+    }
+}
+
+impl<Message> Operation<Message> for PushToastOperation {
+    fn container(
+        &mut self,
+        _id: Option<&Id>,
+        _bounds: Rectangle,
+        operate_on_children: &mut dyn FnMut(&mut dyn Operation<Message>),
+    ) {
+        operate_on_children(self);
+    }
+
+    fn custom(&mut self, state: &mut dyn Any, id: Option<&Id>) {
+        let state = state.downcast_mut::<State>().unwrap();
+        let toasts = state.downcast_mut::<Vec<Toast>>();
+
+        let manager_id = Id::new(MANAGER_ID);
+        if id == Some(&manager_id) {
+            toasts.push(self.toast.clone());
+        }
+    }
 }
