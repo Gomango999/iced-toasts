@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+use std::rc::Rc;
+
 use iced::{
     Alignment, Color, Element, Event, Length, Padding, Rectangle, Renderer, Size, Theme,
     advanced::{
@@ -13,9 +15,9 @@ use iced::{
             tree::{State, Tag},
         },
     },
-    event,
-    time::Duration,
+    event, time,
     widget::{column, text},
+    window,
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -32,17 +34,28 @@ impl std::fmt::Display for Level {
     }
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
+pub struct Id(usize);
+
+impl Id {
+    fn new() -> Self {
+        Id(0)
+    }
+
+    fn next(&self) -> Id {
+        Id(self.0 + 1)
+    }
+}
+
 #[derive(Clone, Debug)]
 struct Toast {
+    // TODO: Replace this with a wrapper around usize, so Id is opaque.
+    id: Id,
+    created_at: time::Instant,
+
     level: Level,
     message: String,
     // TODO: Add a button (closure produces a message)
-}
-
-impl Toast {
-    pub fn new(level: Level, message: String) -> Self {
-        Toast { level, message }
-    }
 }
 
 impl<'a, Message> From<&Toast> for Element<'a, Message>
@@ -56,51 +69,81 @@ where
     }
 }
 
-pub struct ToastManager {
+pub struct ToastManager<'a, Message> {
     toasts: Vec<Toast>,
-    auto_dismiss_duration: Duration,
+    next_toast_id: Id,
+    timeout_secs: time::Duration,
+    on_dismiss: Rc<Box<dyn Fn(Id) -> Message + 'a>>,
 }
 
-impl ToastManager {
-    pub fn new() -> Self {
+impl<'a, Message> ToastManager<'a, Message>
+where
+    Message: 'a,
+{
+    pub fn new(on_dismiss: impl Fn(Id) -> Message + 'a) -> Self {
         ToastManager {
             toasts: Vec::new(),
-            auto_dismiss_duration: Duration::new(5, 0),
+            next_toast_id: Id::new(),
+            timeout_secs: time::Duration::new(5, 0),
+            on_dismiss: Rc::new(Box::new(on_dismiss)),
         }
     }
 
     pub fn push_toast(&mut self, level: Level, message: &str) {
         self.toasts.push(Toast {
+            id: self.next_toast_id,
+            created_at: time::Instant::now(),
             level,
             message: message.to_string(),
-        })
+        });
+        self.next_toast_id = self.next_toast_id.next();
     }
 
-    pub fn view<'a, Message: 'a>(
-        &self,
-        content: impl Into<Element<'a, Message>>,
-    ) -> Element<'a, Message> {
-        Element::new(ManagerWidget::new(&self.toasts, content))
+    pub fn dismiss_toast(&mut self, id: Id) {
+        self.toasts.retain(|toast| toast.id != id);
+    }
+
+    pub fn view(&self, content: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
+        Element::new(ToastWidget::new(
+            &self.toasts,
+            content,
+            self.timeout_secs,
+            self.on_dismiss.clone(),
+        ))
     }
 }
 
 // TODO: Add styling options
-pub struct ManagerWidget<'a, Message> {
+pub struct ToastWidget<'a, Message> {
     content: Element<'a, Message>,
-    toasts: Vec<Element<'a, Message>>,
+    toasts: Vec<Toast>,
+    // `elements[i]` is the corresponding element to `toasts[i]`.
+    // We store them in two separate vectors instead of one because the overlay
+    // requires a &[Toast] slice.
+    elements: Vec<Element<'a, Message>>,
+    timeout_secs: time::Duration,
+    on_dismiss: Rc<Box<dyn Fn(Id) -> Message + 'a>>,
 }
 
-impl<'a, Message: 'a> ManagerWidget<'a, Message> {
-    fn new(toasts: &Vec<Toast>, content: impl Into<Element<'a, Message>>) -> Self {
-        let toasts = toasts.iter().map(|toast| toast.into()).collect();
-        ManagerWidget {
+impl<'a, Message: 'a> ToastWidget<'a, Message> {
+    fn new(
+        toasts: &Vec<Toast>,
+        content: impl Into<Element<'a, Message>>,
+        timeout_secs: time::Duration,
+        on_dismiss: Rc<Box<dyn Fn(Id) -> Message + 'a>>,
+    ) -> Self {
+        let elements = toasts.iter().map(|toast| toast.into()).collect();
+        ToastWidget {
             content: content.into(),
-            toasts,
+            toasts: toasts.clone(),
+            elements,
+            timeout_secs,
+            on_dismiss,
         }
     }
 }
 
-impl<Message> Widget<Message, Theme, Renderer> for ManagerWidget<'_, Message> {
+impl<Message> Widget<Message, Theme, Renderer> for ToastWidget<'_, Message> {
     fn size(&self) -> Size<Length> {
         self.content.as_widget().size()
     }
@@ -144,14 +187,14 @@ impl<Message> Widget<Message, Theme, Renderer> for ManagerWidget<'_, Message> {
 
     fn children(&self) -> Vec<Tree> {
         std::iter::once(Tree::new(&self.content))
-            .chain(self.toasts.iter().map(Tree::new))
+            .chain(self.elements.iter().map(Tree::new))
             .collect()
     }
 
     fn diff(&self, tree: &mut Tree) {
         tree.diff_children(
             &std::iter::once(&self.content)
-                .chain(self.toasts.iter())
+                .chain(self.elements.iter())
                 .collect::<Vec<_>>(),
         );
     }
@@ -181,6 +224,19 @@ impl<Message> Widget<Message, Theme, Renderer> for ManagerWidget<'_, Message> {
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
     ) -> event::Status {
+        if let Event::Window(window::Event::RedrawRequested(_)) = &event {
+            self.toasts
+                .iter()
+                .for_each(|&Toast { id, created_at, .. }| {
+                    if created_at.elapsed() > self.timeout_secs {
+                        shell.publish((self.on_dismiss)(id));
+                    } else {
+                        let request = window::RedrawRequest::At(created_at + self.timeout_secs);
+                        shell.request_redraw(request);
+                    }
+                });
+        }
+
         self.content.as_widget_mut().on_event(
             &mut tree.children[0],
             event,
@@ -225,10 +281,8 @@ impl<Message> Widget<Message, Theme, Renderer> for ManagerWidget<'_, Message> {
             translation,
         );
 
-        // TODO: Remove expired toasts
-
         let toast_overlay = (!self.toasts.is_empty()).then(|| {
-            let toast_overlay = Overlay::new(&mut self.toasts, toast_state);
+            let toast_overlay = Overlay::new(&self.elements, toast_state);
             overlay::Element::new(Box::new(toast_overlay))
         });
 
@@ -241,12 +295,12 @@ impl<Message> Widget<Message, Theme, Renderer> for ManagerWidget<'_, Message> {
 }
 
 struct Overlay<'a, 'b, Message> {
-    toasts: &'b mut [Element<'a, Message>],
+    toasts: &'b [Element<'a, Message>],
     state: &'b mut [Tree],
 }
 
 impl<'a, 'b, Message> Overlay<'a, 'b, Message> {
-    fn new(toasts: &'b mut [Element<'a, Message>], state: &'b mut [Tree]) -> Self {
+    fn new(toasts: &'b [Element<'a, Message>], state: &'b mut [Tree]) -> Self {
         Overlay { toasts, state }
     }
 }
