@@ -18,6 +18,7 @@ struct App<'a, Message> {
 enum Message {
     PushToast,
     DismissToast(Id),
+    ToastActioned(usize),
 }
 
 impl Default for App<'_, Message> {
@@ -37,11 +38,15 @@ impl App<'_, Message> {
                     Level::Success,
                     "Success",
                     &format!("New Toast Added! ({:?})", self.toast_counter),
+                    Some(("Undo", Message::ToastActioned(self.toast_counter))),
                 );
                 self.toast_counter += 1;
             }
             Message::DismissToast(id) => {
                 self.toasts.dismiss_toast(id);
+            }
+            Message::ToastActioned(value) => {
+                println!("Actioned! {value}")
             }
         }
     }
