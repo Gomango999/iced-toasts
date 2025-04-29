@@ -2,7 +2,6 @@ use iced::{
     Element, Length,
     widget::{button, column, container, text},
 };
-// TODO: Think about this interface
 use iced_toasts::{Id, Level, ToastManager};
 
 pub fn main() -> iced::Result {
@@ -24,7 +23,9 @@ enum Message {
 impl Default for App<'_, Message> {
     fn default() -> Self {
         Self {
-            toasts: ToastManager::new(Message::DismissToast),
+            toasts: ToastManager::new(Message::DismissToast)
+                .alignment_x(iced_toasts::alignment::Horizontal::Right)
+                .alignment_y(iced_toasts::alignment::Vertical::Top),
             toast_counter: 0,
         }
     }
@@ -53,8 +54,9 @@ impl App<'_, Message> {
 
     fn view(&self) -> Element<Message> {
         let content = button(text("Add new toast!")).on_press(Message::PushToast);
-        self.toasts
-            .view(container(column![content]).align_right(Length::Fill))
-            .into()
+        let content = container(column![content]).align_right(Length::Fill);
+        // TODO: Display issue. Button appears different when it is passed through `self.toasts.view()`
+        // content.into()
+        self.toasts.view(content).into()
     }
 }

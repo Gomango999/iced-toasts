@@ -1,9 +1,8 @@
 #![allow(dead_code)]
-
 use std::rc::Rc;
 
 use iced::{
-    Alignment, Color, Element, Event, Length, Padding, Point, Rectangle, Renderer, Size, Theme,
+    Element, Event, Length, Padding, Point, Rectangle, Renderer, Size, Theme, Vector,
     advanced::{
         Clipboard, Layout, Shell, Widget,
         layout::{self, Limits, Node, flex::Axis},
@@ -15,176 +14,58 @@ use iced::{
             tree::{State, Tag},
         },
     },
-    event, time,
-    widget::{Space, button, column, container, row, text},
-    window,
+    event, time, window,
 };
 
-#[derive(Clone, Copy, Debug)]
-pub enum Level {
-    Info,
-    Success,
-    Warning,
-    Error,
-}
+// TODO: Think about the API.
+// E.g. Not everything in toast should be exposed, what derives should I expose, how should I name?
+mod toast;
+pub use toast::*;
 
-impl std::fmt::Display for Level {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
+pub mod alignment {
 
-#[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
-pub struct Id(usize);
-
-impl Id {
-    fn new() -> Self {
-        Id(0)
+    #[derive(Copy, Clone, Debug, PartialEq)]
+    pub enum Horizontal {
+        Left,
+        Center,
+        Right,
     }
 
-    fn next(&self) -> Id {
-        Id(self.0 + 1)
+    impl Into<iced::alignment::Alignment> for Horizontal {
+        fn into(self) -> iced::alignment::Alignment {
+            match self {
+                Horizontal::Left => iced::alignment::Horizontal::Left,
+                Horizontal::Center => iced::alignment::Horizontal::Center,
+                Horizontal::Right => iced::alignment::Horizontal::Right,
+            }
+            .into()
+        }
     }
-}
 
-#[derive(Clone, Debug)]
-struct Toast<Message> {
-    id: Id,
-    created_at: time::Instant,
+    #[derive(Copy, Clone, Debug, PartialEq)]
+    pub enum Vertical {
+        Top,
+        Bottom,
+    }
 
-    level: Level,
-    title: String,
-    message: String,
-
-    on_dismiss: Message,
-    action: Option<(String, Message)>,
-}
-
-impl<'a, Message> From<&Toast<Message>> for Element<'a, Message>
-where
-    Message: 'a + Clone,
-{
-    fn from(toast: &Toast<Message>) -> Self {
-        let toast = toast.clone();
-
-        let left_border: Element<Message> = container(Space::with_width(Length::Fill))
-            .width(4)
-            .height(Length::Fill)
-            .style(move |theme: &Theme| {
-                let palette = theme.extended_palette();
-                let color = match toast.level {
-                    Level::Info => palette.primary.strong.color,
-                    Level::Success => palette.success.strong.color,
-                    Level::Warning => palette.danger.strong.color,
-                    Level::Error => palette.danger.strong.color,
-                };
-                container::background(color).border(iced::Border {
-                    color,
-                    width: 2.0,
-                    radius: 5.0.into(),
-                })
-            })
-            .into();
-
-        let content = column![
-            text(toast.title).font(iced::Font {
-                weight: iced::font::Weight::Bold,
-                ..iced::Font::DEFAULT
-            }),
-            text(toast.message)
-        ]
-        .padding(Padding::from([5, 10]));
-
-        let action_button: Element<'a, Message> = toast
-            .action
-            .map(|(button_text, message)| {
-                container(
-                    button(text(button_text))
-                        .style(|theme: &Theme, status| {
-                            let palette = theme.extended_palette();
-
-                            let background = match status {
-                                button::Status::Active => None,
-                                button::Status::Hovered => Some(palette.background.weak.color),
-                                button::Status::Pressed => Some(palette.background.strong.color),
-                                button::Status::Disabled => None,
-                            }
-                            .map(iced::Background::Color);
-
-                            button::Style {
-                                background,
-                                text_color: palette.primary.base.color,
-                                border: iced::Border {
-                                    color: Color::WHITE,
-                                    width: 0.0,
-                                    radius: 5.0.into(),
-                                },
-                                ..button::Style::default()
-                            }
-                        })
-                        .on_press(message),
-                )
-                .align_y(Alignment::Center)
-                .height(Length::Fill)
-                .into()
-            })
-            .unwrap_or_else(|| Space::new(0, 0).into());
-
-        let dismiss_button = container(
-            // TODO: Get x button displaying a little higher, not centered vertically
-            // TODO: Hover effect doesn't reach top and bottom of toast.
-            button(text("×").size(28))
-                .style(|theme: &Theme, status| {
-                    let palette = theme.extended_palette();
-
-                    let background = match status {
-                        button::Status::Active => None,
-                        button::Status::Hovered => Some(palette.background.weak.color),
-                        button::Status::Pressed => Some(palette.background.strong.color),
-                        button::Status::Disabled => None,
-                    }
-                    .map(iced::Background::Color);
-
-                    button::Style {
-                        background,
-                        text_color: Color::WHITE,
-                        ..button::Style::default()
-                    }
-                })
-                .on_press(toast.on_dismiss),
-        )
-        .center(Length::Shrink)
-        .center_y(Length::Fill);
-
-        let toast_element: Element<'a, Message> =
-            container(row![left_border, content, action_button, dismiss_button])
-                .height(55)
-                .style(|theme: &Theme| {
-                    let palette = theme.extended_palette();
-
-                    container::Style {
-                        background: Some(palette.background.base.color.into()),
-                        border: iced::Border {
-                            color: palette.background.weak.color.into(),
-                            width: 1.0,
-                            radius: 5.0.into(),
-                        },
-                        ..container::Style::default()
-                    }
-                })
-                .clip(true)
-                .into();
-
-        toast_element
-        // toast_element.explain(Color::WHITE)
+    impl Into<iced::alignment::Alignment> for Vertical {
+        fn into(self) -> iced::alignment::Alignment {
+            match self {
+                Vertical::Top => iced::alignment::Vertical::Top,
+                Vertical::Bottom => iced::alignment::Vertical::Bottom,
+            }
+            .into()
+        }
     }
 }
 
 pub struct ToastManager<'a, Message> {
     toasts: Vec<Toast<Message>>,
     next_toast_id: Id,
-    timeout_secs: time::Duration,
+    timeout: time::Duration,
     on_dismiss: Rc<Box<dyn Fn(Id) -> Message + 'a>>,
+    alignment_x: alignment::Horizontal,
+    alignment_y: alignment::Vertical,
 }
 
 impl<'a, Message> ToastManager<'a, Message>
@@ -195,9 +76,23 @@ where
         ToastManager {
             toasts: Vec::new(),
             next_toast_id: Id::new(),
-            timeout_secs: time::Duration::new(10, 0),
+            timeout: time::Duration::new(10, 0),
             on_dismiss: Rc::new(Box::new(on_dismiss)),
+            alignment_x: alignment::Horizontal::Right,
+            alignment_y: alignment::Vertical::Bottom,
         }
+    }
+    pub fn alignment_x(mut self, alignment: alignment::Horizontal) -> Self {
+        self.alignment_x = alignment;
+        self
+    }
+    pub fn alignment_y(mut self, alignment: alignment::Vertical) -> Self {
+        self.alignment_y = alignment;
+        self
+    }
+    pub fn timeout(mut self, timeout: time::Duration) -> Self {
+        self.timeout = timeout;
+        self
     }
 
     pub fn push_toast(
@@ -228,8 +123,10 @@ where
         Element::new(ToastWidget::new(
             &self.toasts,
             content,
-            self.timeout_secs,
+            self.timeout,
             self.on_dismiss.clone(),
+            self.alignment_x,
+            self.alignment_y,
         ))
     }
 }
@@ -238,12 +135,16 @@ where
 pub struct ToastWidget<'a, Message> {
     content: Element<'a, Message>,
     toasts: Vec<Toast<Message>>,
-    // `elements[i]` is the corresponding element to `toasts[i]`.
+    // `toast_elements[i]` is the corresponding element to `toasts[i]`.
     // We store them in two separate vectors instead of one because the overlay
     // requires a &[Toast] slice.
     toast_elements: Vec<Element<'a, Message>>,
-    timeout_secs: time::Duration,
+
+    timeout: time::Duration,
     on_dismiss: Rc<Box<dyn Fn(Id) -> Message + 'a>>,
+
+    alignment_x: alignment::Horizontal,
+    alignment_y: alignment::Vertical,
 }
 
 impl<'a, Message: 'a + Clone> ToastWidget<'a, Message> {
@@ -252,14 +153,24 @@ impl<'a, Message: 'a + Clone> ToastWidget<'a, Message> {
         content: impl Into<Element<'a, Message>>,
         timeout_secs: time::Duration,
         on_dismiss: Rc<Box<dyn Fn(Id) -> Message + 'a>>,
+        alignment_x: alignment::Horizontal,
+        alignment_y: alignment::Vertical,
     ) -> Self {
-        let elements = toasts.iter().map(|toast| toast.into()).collect();
+        let mut toasts = toasts.clone();
+        if alignment_y == alignment::Vertical::Top {
+            toasts.reverse()
+        }
+
+        let toast_elements = toasts.iter().map(|toast| toast.into()).collect();
+
         ToastWidget {
             content: content.into(),
             toasts: toasts.clone(),
-            toast_elements: elements,
-            timeout_secs,
+            toast_elements,
+            timeout: timeout_secs,
             on_dismiss,
+            alignment_x,
+            alignment_y,
         }
     }
 }
@@ -349,10 +260,10 @@ impl<Message> Widget<Message, Theme, Renderer> for ToastWidget<'_, Message> {
             self.toasts
                 .iter()
                 .for_each(|&Toast { id, created_at, .. }| {
-                    if created_at.elapsed() > self.timeout_secs {
+                    if created_at.elapsed() > self.timeout {
                         shell.publish((self.on_dismiss)(id));
                     } else {
-                        let request = window::RedrawRequest::At(created_at + self.timeout_secs);
+                        let request = window::RedrawRequest::At(created_at + self.timeout);
                         shell.request_redraw(request);
                     }
                 });
@@ -403,7 +314,13 @@ impl<Message> Widget<Message, Theme, Renderer> for ToastWidget<'_, Message> {
         );
 
         let toast_overlay = (!self.toasts.is_empty()).then(|| {
-            let toast_overlay = Overlay::new(&mut self.toast_elements, toast_state);
+            let toast_overlay = Overlay::new(
+                &mut self.toast_elements,
+                toast_state,
+                layout.bounds().position() + translation,
+                self.alignment_x,
+                self.alignment_y,
+            );
             overlay::Element::new(Box::new(toast_overlay))
         });
 
@@ -418,28 +335,47 @@ impl<Message> Widget<Message, Theme, Renderer> for ToastWidget<'_, Message> {
 struct Overlay<'a, 'b, Message> {
     toasts: &'b mut [Element<'a, Message>],
     state: &'b mut [Tree],
+
+    position: Point,
+    alignment_x: alignment::Horizontal,
+    alignment_y: alignment::Vertical,
 }
 
 impl<'a, 'b, Message> Overlay<'a, 'b, Message> {
-    fn new(toasts: &'b mut [Element<'a, Message>], state: &'b mut [Tree]) -> Self {
-        Overlay { toasts, state }
+    fn new(
+        toasts: &'b mut [Element<'a, Message>],
+        state: &'b mut [Tree],
+        position: Point,
+        alignment_x: alignment::Horizontal,
+        alignment_y: alignment::Vertical,
+    ) -> Self {
+        Overlay {
+            toasts,
+            state,
+            position,
+            alignment_x,
+            alignment_y,
+        }
     }
 }
 
 impl<'a, Message> overlay::Overlay<Message, Theme, Renderer> for Overlay<'a, '_, Message> {
     fn layout(&mut self, renderer: &Renderer, bounds: Size) -> Node {
+        // TODO: Fix bug where if too many toasts are spammed, the bottom ones become too small.
         layout::flex::resolve(
             Axis::Vertical,
             renderer,
             &Limits::new(Size::ZERO, bounds),
             Length::Shrink,
             Length::Shrink,
-            Padding::from(0),
+            Padding::from(5),
             5.0,
-            Alignment::Start,
+            self.alignment_x.into(),
             self.toasts,
             self.state,
         )
+        .translate(Vector::new(self.position.x, self.position.y))
+        .align(self.alignment_x.into(), self.alignment_y.into(), bounds)
     }
 
     fn draw(
