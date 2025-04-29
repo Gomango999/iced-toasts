@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use std::rc::Rc;
+use std::{cell::RefCell, cmp, rc::Rc};
 
 use iced::{
     Element, Event, Length, Padding, Point, Rectangle, Renderer, Size, Theme, Vector,
@@ -60,9 +60,9 @@ pub mod alignment {
 }
 
 pub struct ToastManager<'a, Message> {
-    toasts: Vec<Toast<Message>>,
+    toasts: Rc<RefCell<Vec<Toast<Message>>>>,
     next_toast_id: Id,
-    timeout: time::Duration,
+    timeout_duration: time::Duration,
     on_dismiss: Rc<Box<dyn Fn(Id) -> Message + 'a>>,
     alignment_x: alignment::Horizontal,
     alignment_y: alignment::Vertical,
@@ -74,9 +74,9 @@ where
 {
     pub fn new(on_dismiss: impl Fn(Id) -> Message + 'a) -> Self {
         ToastManager {
-            toasts: Vec::new(),
+            toasts: Rc::new(RefCell::new(Vec::new())),
             next_toast_id: Id::new(),
-            timeout: time::Duration::new(10, 0),
+            timeout_duration: time::Duration::new(5, 0),
             on_dismiss: Rc::new(Box::new(on_dismiss)),
             alignment_x: alignment::Horizontal::Right,
             alignment_y: alignment::Vertical::Bottom,
@@ -91,7 +91,7 @@ where
         self
     }
     pub fn timeout(mut self, timeout: time::Duration) -> Self {
-        self.timeout = timeout;
+        self.timeout_duration = timeout;
         self
     }
 
@@ -102,9 +102,9 @@ where
         message: &str,
         action: Option<(&str, Message)>,
     ) {
-        self.toasts.push(Toast {
+        self.toasts.borrow_mut().push(Toast {
             id: self.next_toast_id,
-            created_at: time::Instant::now(),
+            expiry: time::Instant::now() + self.timeout_duration,
             level,
             title: title.to_string(),
             message: message.to_string(),
@@ -116,14 +116,14 @@ where
     }
 
     pub fn dismiss_toast(&mut self, id: Id) {
-        self.toasts.retain(|toast| toast.id != id);
+        self.toasts.borrow_mut().retain(|toast| toast.id != id);
     }
 
     pub fn view(&self, content: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
         Element::new(ToastWidget::new(
-            &self.toasts,
+            self.toasts.clone(),
             content,
-            self.timeout,
+            self.timeout_duration,
             self.on_dismiss.clone(),
             self.alignment_x,
             self.alignment_y,
@@ -134,7 +134,7 @@ where
 // TODO: Add styling options
 pub struct ToastWidget<'a, Message> {
     content: Element<'a, Message>,
-    toasts: Vec<Toast<Message>>,
+    toasts: Rc<RefCell<Vec<Toast<Message>>>>,
     // `toast_elements[i]` is the corresponding element to `toasts[i]`.
     // We store them in two separate vectors instead of one because the overlay
     // requires a &[Toast] slice.
@@ -149,23 +149,18 @@ pub struct ToastWidget<'a, Message> {
 
 impl<'a, Message: 'a + Clone> ToastWidget<'a, Message> {
     fn new(
-        toasts: &Vec<Toast<Message>>,
+        toasts: Rc<RefCell<Vec<Toast<Message>>>>,
         content: impl Into<Element<'a, Message>>,
         timeout_secs: time::Duration,
         on_dismiss: Rc<Box<dyn Fn(Id) -> Message + 'a>>,
         alignment_x: alignment::Horizontal,
         alignment_y: alignment::Vertical,
     ) -> Self {
-        let mut toasts = toasts.clone();
-        if alignment_y == alignment::Vertical::Top {
-            toasts.reverse()
-        }
-
-        let toast_elements = toasts.iter().map(|toast| toast.into()).collect();
+        let toast_elements = toasts.borrow().iter().map(|toast| toast.into()).collect();
 
         ToastWidget {
             content: content.into(),
-            toasts: toasts.clone(),
+            toasts,
             toast_elements,
             timeout: timeout_secs,
             on_dismiss,
@@ -256,14 +251,15 @@ impl<Message> Widget<Message, Theme, Renderer> for ToastWidget<'_, Message> {
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
     ) -> event::Status {
-        if let Event::Window(window::Event::RedrawRequested(_)) = &event {
+        if let Event::Window(window::Event::RedrawRequested(now)) = &event {
             self.toasts
+                .borrow()
                 .iter()
-                .for_each(|&Toast { id, created_at, .. }| {
-                    if created_at.elapsed() > self.timeout {
+                .for_each(|&Toast { id, expiry, .. }| {
+                    if now > &expiry {
                         shell.publish((self.on_dismiss)(id));
                     } else {
-                        let request = window::RedrawRequest::At(created_at + self.timeout);
+                        let request = window::RedrawRequest::At(expiry);
                         shell.request_redraw(request);
                     }
                 });
@@ -313,8 +309,9 @@ impl<Message> Widget<Message, Theme, Renderer> for ToastWidget<'_, Message> {
             translation,
         );
 
-        let toast_overlay = (!self.toasts.is_empty()).then(|| {
+        let toast_overlay = (!self.toasts.borrow().is_empty()).then(|| {
             let toast_overlay = Overlay::new(
+                self.toasts.clone(),
                 &mut self.toast_elements,
                 toast_state,
                 layout.bounds().position() + translation,
@@ -333,7 +330,8 @@ impl<Message> Widget<Message, Theme, Renderer> for ToastWidget<'_, Message> {
 }
 
 struct Overlay<'a, 'b, Message> {
-    toasts: &'b mut [Element<'a, Message>],
+    toasts: Rc<RefCell<Vec<Toast<Message>>>>,
+    elements: &'b mut [Element<'a, Message>],
     state: &'b mut [Tree],
 
     position: Point,
@@ -343,7 +341,8 @@ struct Overlay<'a, 'b, Message> {
 
 impl<'a, 'b, Message> Overlay<'a, 'b, Message> {
     fn new(
-        toasts: &'b mut [Element<'a, Message>],
+        toasts: Rc<RefCell<Vec<Toast<Message>>>>,
+        elements: &'b mut [Element<'a, Message>],
         state: &'b mut [Tree],
         position: Point,
         alignment_x: alignment::Horizontal,
@@ -351,6 +350,7 @@ impl<'a, 'b, Message> Overlay<'a, 'b, Message> {
     ) -> Self {
         Overlay {
             toasts,
+            elements,
             state,
             position,
             alignment_x,
@@ -371,7 +371,7 @@ impl<'a, Message> overlay::Overlay<Message, Theme, Renderer> for Overlay<'a, '_,
             Padding::from(5),
             5.0,
             self.alignment_x.into(),
-            self.toasts,
+            self.elements,
             self.state,
         )
         .translate(Vector::new(self.position.x, self.position.y))
@@ -388,15 +388,33 @@ impl<'a, Message> overlay::Overlay<Message, Theme, Renderer> for Overlay<'a, '_,
     ) {
         let viewport = layout.bounds();
 
-        for ((child, state), layout) in self
-            .toasts
-            .iter()
-            .zip(self.state.iter())
-            .zip(layout.children())
-        {
-            child
-                .as_widget()
-                .draw(state, renderer, theme, style, layout, cursor, &viewport)
+        // Reverse the iterator depending on whether the toasts display at the top
+        // of the screen or the bottom. Ideally, I'd just reverse the iterator only
+        // but I can't since zips can't be reversed, and the iterators are
+        // different types, so you get this ugly piece of code duplication.
+        if self.alignment_y == alignment::Vertical::Bottom {
+            let toast_iterator = self
+                .elements
+                .iter()
+                .rev()
+                .zip(self.state.iter().rev())
+                .zip(layout.children().rev());
+            for ((child, state), layout) in toast_iterator {
+                child
+                    .as_widget()
+                    .draw(state, renderer, theme, style, layout, cursor, &viewport)
+            }
+        } else {
+            let toast_iterator = self
+                .elements
+                .iter()
+                .zip(self.state.iter())
+                .zip(layout.children());
+            for ((child, state), layout) in toast_iterator {
+                child
+                    .as_widget()
+                    .draw(state, renderer, theme, style, layout, cursor, &viewport)
+            }
         }
     }
 
@@ -409,9 +427,29 @@ impl<'a, Message> overlay::Overlay<Message, Theme, Renderer> for Overlay<'a, '_,
         clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
     ) -> iced::event::Status {
+        // This function will always be called right before
+        // `ToastWidget::on_event`. This means that right before a toast is
+        // considered for expiry as part of as `RedrawRequested`` event, we
+        // will always be able to check if we are hovering the toasts and update
+        // expiry time before the toast actually expires.
+        let is_hovering_toasts = if let mouse::Cursor::Available(cursor_position) = cursor {
+            self.is_over(layout, renderer, cursor_position)
+        } else {
+            false
+        };
+        if is_hovering_toasts {
+            self.toasts.borrow_mut().iter_mut().for_each(|toast| {
+                let now = time::Instant::now();
+                let hover_timeout = time::Duration::new(2, 0);
+                toast.expiry = cmp::max(toast.expiry, now + hover_timeout)
+            })
+        }
+        // BUG: If I line up a bunch of toasts to expire soon, then I add a new toast
+        // all the toasts instantly expire.
+
         let viewport = layout.bounds();
 
-        self.toasts
+        self.elements
             .iter_mut()
             .zip(self.state.iter_mut())
             .zip(layout.children())
@@ -437,7 +475,7 @@ impl<'a, Message> overlay::Overlay<Message, Theme, Renderer> for Overlay<'a, '_,
         viewport: &Rectangle,
         renderer: &Renderer,
     ) -> mouse::Interaction {
-        self.toasts
+        self.elements
             .iter()
             .zip(self.state.iter())
             .zip(layout.children())

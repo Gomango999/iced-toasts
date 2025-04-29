@@ -24,7 +24,7 @@ impl Default for App<'_, Message> {
     fn default() -> Self {
         Self {
             toasts: ToastManager::new(Message::DismissToast)
-                .alignment_x(iced_toasts::alignment::Horizontal::Right)
+                .alignment_x(iced_toasts::alignment::Horizontal::Left)
                 .alignment_y(iced_toasts::alignment::Vertical::Top),
             toast_counter: 0,
         }

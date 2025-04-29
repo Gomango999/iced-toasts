@@ -33,7 +33,7 @@ impl Id {
 #[derive(Clone, Debug)]
 pub struct Toast<Message> {
     pub id: Id,
-    pub created_at: time::Instant,
+    pub expiry: time::Instant,
 
     pub level: Level,
     pub title: String,
