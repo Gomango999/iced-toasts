@@ -116,8 +116,6 @@ where
             .unwrap_or_else(|| Space::new(0, 0).into());
 
         let dismiss_button = container(
-            // TODO: Get x button displaying a little higher, not centered vertically
-            // TODO: Hover effect doesn't reach top and bottom of toast.
             button(text("×").size(28))
                 .style(|theme: &Theme, status| {
                     let palette = theme.extended_palette();
@@ -133,32 +131,45 @@ where
                     button::Style {
                         background,
                         text_color: Color::WHITE,
+                        border: iced::Border {
+                            color: Color::WHITE,
+                            width: 0.0,
+                            radius: 5.0.into(),
+                        },
                         ..button::Style::default()
                     }
                 })
+                .width(40)
                 .on_press(toast.on_dismiss),
         )
         .center(Length::Shrink)
         .center_y(Length::Fill);
 
-        let toast_element: Element<'a, Message> =
-            container(row![left_border, content, action_button, dismiss_button])
-                .height(TOAST_HEIGHT)
-                .style(|theme: &Theme| {
-                    let palette = theme.extended_palette();
+        let right_padding = Space::new(4, Length::Fill);
 
-                    container::Style {
-                        background: Some(palette.background.base.color.into()),
-                        border: iced::Border {
-                            color: palette.background.weak.color.into(),
-                            width: 1.0,
-                            radius: 5.0.into(),
-                        },
-                        ..container::Style::default()
-                    }
-                })
-                .clip(true)
-                .into();
+        let toast_element: Element<'a, Message> = container(row![
+            left_border,
+            content,
+            action_button,
+            dismiss_button,
+            right_padding
+        ])
+        .height(TOAST_HEIGHT)
+        .style(|theme: &Theme| {
+            let palette = theme.extended_palette();
+
+            container::Style {
+                background: Some(palette.background.base.color.into()),
+                border: iced::Border {
+                    color: palette.background.weak.color.into(),
+                    width: 1.0,
+                    radius: 5.0.into(),
+                },
+                ..container::Style::default()
+            }
+        })
+        .clip(true)
+        .into();
 
         toast_element
         // toast_element.explain(Color::WHITE)
