@@ -135,9 +135,6 @@ where
 pub struct ToastWidget<'a, Message> {
     content: Element<'a, Message>,
     toasts: Rc<RefCell<Vec<Toast<Message>>>>,
-    // `toast_elements[i]` is the corresponding element to `toasts[i]`.
-    // We store them in two separate vectors instead of one because the overlay
-    // requires a &[Toast] slice.
     toast_elements: Vec<Element<'a, Message>>,
 
     timeout: time::Duration,
@@ -156,7 +153,10 @@ impl<'a, Message: 'a + Clone> ToastWidget<'a, Message> {
         alignment_x: alignment::Horizontal,
         alignment_y: alignment::Vertical,
     ) -> Self {
-        let toast_elements = toasts.borrow().iter().map(|toast| toast.into()).collect();
+        let mut toast_elements: Vec<_> = toasts.borrow().iter().map(|toast| toast.into()).collect();
+        if alignment_y == alignment::Vertical::Top {
+            toast_elements.reverse()
+        }
 
         ToastWidget {
             content: content.into(),
@@ -361,7 +361,6 @@ impl<'a, 'b, Message> Overlay<'a, 'b, Message> {
 
 impl<'a, Message> overlay::Overlay<Message, Theme, Renderer> for Overlay<'a, '_, Message> {
     fn layout(&mut self, renderer: &Renderer, bounds: Size) -> Node {
-        // TODO: Fix bug where if too many toasts are spammed, the bottom ones become too small.
         layout::flex::resolve(
             Axis::Vertical,
             renderer,
