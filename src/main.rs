@@ -1,5 +1,5 @@
 use iced::{
-    Color, Element, Length,
+    Element, Length,
     widget::{button, column, container, text},
 };
 use iced_toasts::{Id, Level, ToastManager};

@@ -411,6 +411,15 @@ impl<'a, Message> overlay::Overlay<Message, Theme, Renderer> for Overlay<'a, '_,
                 .zip(self.state.iter())
                 .zip(layout.children());
             for ((child, state), layout) in toast_iterator {
+                // Do not draw toasts that will be displayed offscreen. We would
+                // ideally also pause the expiration timer on toasts that are not
+                // being displayed, but for now, we'll just chalk it up to users
+                // misusing the notification system if they are actually generating
+                // so many toasts that they go off-screen.
+                if layout.bounds().height < TOAST_HEIGHT {
+                    continue;
+                }
+
                 child
                     .as_widget()
                     .draw(state, renderer, theme, style, layout, cursor, &viewport)
@@ -444,8 +453,6 @@ impl<'a, Message> overlay::Overlay<Message, Theme, Renderer> for Overlay<'a, '_,
                 toast.expiry = cmp::max(toast.expiry, now + hover_timeout)
             })
         }
-        // BUG: If I line up a bunch of toasts to expire soon, then I add a new toast
-        // all the toasts instantly expire.
 
         let viewport = layout.bounds();
 

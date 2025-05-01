@@ -3,6 +3,8 @@ use iced::{
     widget::{Space, button, column, container, row, text},
 };
 
+pub const TOAST_HEIGHT: f32 = 55.0;
+
 #[derive(Clone, Copy, Debug)]
 pub enum Level {
     Info,
@@ -141,7 +143,7 @@ where
 
         let toast_element: Element<'a, Message> =
             container(row![left_border, content, action_button, dismiss_button])
-                .height(55)
+                .height(TOAST_HEIGHT)
                 .style(|theme: &Theme| {
                     let palette = theme.extended_palette();
 
