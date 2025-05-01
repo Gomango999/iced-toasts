@@ -198,7 +198,7 @@ impl<Message> Widget<Message, Theme, Renderer> for ToastWidget<'_, Message> {
             renderer,
             theme,
             style,
-            layout,
+            layout.children().next().unwrap(),
             cursor,
             viewport,
         )

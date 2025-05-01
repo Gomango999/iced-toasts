@@ -1,5 +1,5 @@
 use iced::{
-    Element, Length,
+    Color, Element, Length,
     widget::{button, column, container, text},
 };
 use iced_toasts::{Id, Level, ToastManager};
@@ -55,8 +55,6 @@ impl App<'_, Message> {
     fn view(&self) -> Element<Message> {
         let content = button(text("Add new toast!")).on_press(Message::PushToast);
         let content = container(column![content]).align_right(Length::Fill);
-        // TODO: Display issue. Button appears different when it is passed through `self.toasts.view()`
-        // content.into()
-        self.toasts.view(content).into()
+        self.toasts.view(content)
     }
 }
