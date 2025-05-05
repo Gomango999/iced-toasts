@@ -25,7 +25,7 @@ impl Default for App<'_, Message> {
         Self {
             toasts: ToastManager::new(Message::DismissToast)
                 .alignment_x(iced_toasts::alignment::Horizontal::Left)
-                .alignment_y(iced_toasts::alignment::Vertical::Top),
+                .alignment_y(iced_toasts::alignment::Vertical::Bottom),
             toast_counter: 0,
         }
     }
@@ -38,7 +38,15 @@ impl App<'_, Message> {
                 self.toasts.push_toast(
                     Level::Success,
                     "Success",
-                    &format!("New Toast Added! ({:?})", self.toast_counter),
+                    &format!("Added a new toast! ({:?})", self.toast_counter),
+                    Some(("Undo", Message::ToastActioned(self.toast_counter))),
+                );
+                self.toast_counter += 1;
+
+                self.toasts.push_toast(
+                    Level::Success,
+                    "Lesson: Working backwards, I was able to build up a clear set of limitations",
+                    &format!("Change the view to display a clickable button with text, that returns the message! Again, the code wasn't too hard to write, so went pretty fast. Imagine `limits` as the hard window size, constrained in addition by the containers size. We call `limits.resolve()` with container width and height, as well as size of contents. In some respect, a button is just a container layout-wise. If we are shrink in the cross axis, then we can take up as much height as we like (up to the limits of the row itself) ({:?})", self.toast_counter),
                     Some(("Undo", Message::ToastActioned(self.toast_counter))),
                 );
                 self.toast_counter += 1;

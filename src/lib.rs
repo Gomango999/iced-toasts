@@ -410,20 +410,15 @@ impl<'a, Message> overlay::Overlay<Message, Theme, Renderer> for Overlay<'a, '_,
                 .zip(self.state.iter())
                 .zip(layout.children());
             for ((child, state), layout) in toast_iterator {
-                // Do not draw toasts that will be displayed offscreen. We would
-                // ideally also pause the expiration timer on toasts that are not
-                // being displayed, but for now, we'll just chalk it up to users
-                // misusing the notification system if they are actually generating
-                // so many toasts that they go off-screen.
-                if layout.bounds().height < TOAST_HEIGHT {
-                    continue;
-                }
-
                 child
                     .as_widget()
                     .draw(state, renderer, theme, style, layout, cursor, &viewport)
             }
         }
+        // TODO: Make toasts not draw if they cannot fit. Currently, they
+        // just shrink in size and display a some of it's elements. Perhaps
+        // implement a queue system so that cut off toasts still have a
+        // chance to display later.
     }
 
     fn on_event(

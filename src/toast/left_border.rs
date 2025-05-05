@@ -7,11 +7,19 @@ use iced::{
     event, mouse, overlay,
 };
 
+// TODO: Support rounded and non-rounded corners
 pub struct LeftBorder<'a, Message> {
     width: Length,
     height: Length,
     border: Option<Border>,
     content: Element<'a, Message, Theme, Renderer>,
+}
+
+pub fn left_border<'a, Message>(
+    content: impl Into<Element<'a, Message>>,
+    border: Option<Border>,
+) -> LeftBorder<'a, Message> {
+    LeftBorder::new(content, border)
 }
 
 impl<'a, Message> LeftBorder<'a, Message> {

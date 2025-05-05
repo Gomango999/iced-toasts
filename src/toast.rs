@@ -1,9 +1,10 @@
 use iced::{
-    Alignment, Color, Element, Length, Padding, Theme, time,
-    widget::{Space, button, column, container, row, text},
+    Alignment, Border, Color, Element, Length, Padding, Theme, color, time,
+    widget::{Space, button, column, container, row, scrollable, text},
 };
 
-pub const TOAST_HEIGHT: f32 = 55.0;
+mod left_border;
+use left_border::left_border;
 
 #[derive(Clone, Copy, Debug)]
 pub enum Level {
@@ -52,33 +53,20 @@ where
     fn from(toast: &Toast<Message>) -> Self {
         let toast = toast.clone();
 
-        let left_border: Element<Message> = container(Space::with_width(Length::Fill))
-            .width(4)
-            .height(Length::Fill)
-            .style(move |theme: &Theme| {
-                let palette = theme.extended_palette();
-                let color = match toast.level {
-                    Level::Info => palette.primary.strong.color,
-                    Level::Success => palette.success.strong.color,
-                    Level::Warning => palette.danger.strong.color,
-                    Level::Error => palette.danger.strong.color,
-                };
-                container::background(color).border(iced::Border {
-                    color,
-                    width: 2.0,
-                    radius: 5.0.into(),
-                })
-            })
-            .into();
-
-        let content = column![
-            text(toast.title).font(iced::Font {
-                weight: iced::font::Weight::Bold,
-                ..iced::Font::DEFAULT
-            }),
-            text(toast.message)
-        ]
-        .padding(Padding::from([5, 10]));
+        let content: Element<Message> = container(scrollable(
+            column![
+                text(toast.title).font(iced::Font {
+                    weight: iced::font::Weight::Bold,
+                    ..iced::Font::DEFAULT
+                }),
+                text(toast.message)
+            ]
+            .padding(Padding::default().right(10)),
+        ))
+        .max_width(500)
+        .height(Length::Shrink)
+        .padding(Padding::from([5, 10]))
+        .into();
 
         let action_button: Element<'a, Message> = toast
             .action
@@ -115,7 +103,7 @@ where
             })
             .unwrap_or_else(|| Space::new(0, 0).into());
 
-        let dismiss_button = container(
+        let dismiss_button: Element<Message> = container(
             button(text("×").size(28))
                 .style(|theme: &Theme, status| {
                     let palette = theme.extended_palette();
@@ -142,22 +130,25 @@ where
                 .width(40)
                 .on_press(toast.on_dismiss),
         )
-        .center(Length::Shrink)
-        .center_y(Length::Fill);
+        .center_y(Length::Fill)
+        .into();
 
-        let right_padding = Space::new(4, Length::Fill);
+        let right_padding = Space::new(4, Length::Fixed(55.0));
 
-        let toast_element: Element<'a, Message> = container(row![
-            left_border,
-            content,
-            action_button,
-            dismiss_button,
-            right_padding
-        ])
-        .height(TOAST_HEIGHT)
+        let color = color!(0x228f65);
+        let border = Border {
+            color,
+            width: 2.0,
+            radius: 5.0.into(),
+        };
+
+        let toast_element: Element<Message> = container(left_border(
+            row![content, action_button, dismiss_button, right_padding].height(Length::Shrink),
+            Some(border),
+        ))
+        .max_height(240)
         .style(|theme: &Theme| {
             let palette = theme.extended_palette();
-
             container::Style {
                 background: Some(palette.background.base.color.into()),
                 border: iced::Border {
