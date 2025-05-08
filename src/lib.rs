@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use std::{cell::RefCell, cmp, rc::Rc};
 
 use iced::{
@@ -120,7 +119,7 @@ where
 
     pub fn push_toast(
         &mut self,
-        level: Level,
+        kind: Kind,
         title: &str,
         message: &str,
         action: Option<(&str, Message)>,
@@ -128,7 +127,7 @@ where
         self.toasts.borrow_mut().push(Toast {
             id: self.next_toast_id,
             expiry: time::Instant::now() + self.timeout_duration,
-            level,
+            kind,
             title: title.to_string(),
             message: message.to_string(),
             on_dismiss: (self.on_dismiss)(self.next_toast_id),
@@ -529,7 +528,7 @@ impl<'a, Message> overlay::Overlay<Message, Theme, Renderer> for Overlay<'a, '_,
     }
 }
 
-pub type LevelColorMap<'a> = Rc<dyn Fn(&Level) -> Option<Color> + 'a>;
+pub type KindToColorMap<'a> = Rc<dyn Fn(&Kind) -> Option<Color> + 'a>;
 
 #[derive(Clone)]
 pub struct Style<'a> {
@@ -537,7 +536,7 @@ pub struct Style<'a> {
     pub background: Option<Background>,
     pub border: Border,
     pub shadow: Shadow,
-    pub level_color_map: LevelColorMap<'a>,
+    pub kind_to_color_map: KindToColorMap<'a>,
 }
 
 impl<'a> Style<'a> {
@@ -573,10 +572,13 @@ impl<'a> Style<'a> {
         }
     }
 
-    /// Updates the mapping from levels to colors of the [`Style`].
-    pub fn level_color_map(self, level_color_map: impl Fn(&Level) -> Option<Color> + 'a) -> Self {
+    /// Updates the mapping from toast kinds to colors of the [`Style`].
+    pub fn kind_to_color_map(
+        self,
+        kind_to_color_map: impl Fn(&Kind) -> Option<Color> + 'a,
+    ) -> Self {
         Self {
-            level_color_map: Rc::new(level_color_map),
+            kind_to_color_map: Rc::new(kind_to_color_map),
             ..self
         }
     }
@@ -598,11 +600,11 @@ impl<'a> Default for StyleFn<'a> {
                     radius: 0.0.into(),
                 },
                 shadow: Shadow::default(),
-                level_color_map: Rc::new(move |level: &Level| match level {
-                    Level::Info => Some(palette.primary.strong.color),
-                    Level::Success => Some(palette.success.strong.color),
-                    Level::Warning => Some(palette.danger.strong.color),
-                    Level::Error => Some(palette.danger.strong.color),
+                kind_to_color_map: Rc::new(move |kind: &Kind| match kind {
+                    Kind::Info => Some(palette.primary.strong.color),
+                    Kind::Success => Some(palette.success.strong.color),
+                    Kind::Warning => Some(palette.danger.strong.color),
+                    Kind::Error => Some(palette.danger.strong.color),
                 }),
             }
         }))
