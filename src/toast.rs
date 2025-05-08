@@ -9,14 +9,14 @@ mod left_border;
 use left_border::left_border;
 
 #[derive(Clone, Copy, Debug)]
-pub enum ToastLevel {
+pub enum Level {
     Info,
     Success,
     Warning,
     Error,
 }
 
-impl std::fmt::Display for ToastLevel {
+impl std::fmt::Display for Level {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
     }
@@ -40,8 +40,8 @@ pub struct Toast<Message> {
     pub id: Id,
     pub expiry: time::Instant,
 
-    pub level: ToastLevel,
-    pub title: String,
+    pub level: Option<Level>,
+    pub title: Option<String>,
     pub message: String,
 
     // SOMEDAY: Support having multiple action buttons
@@ -62,18 +62,24 @@ where
 
         let content: Element<Message> = {
             let style_fn_title = style_fn.clone().0;
-            let title = text(toast.title)
-                .font(iced::Font {
-                    weight: iced::font::Weight::Bold,
-                    ..iced::Font::DEFAULT
+            let title: Element<Message> = toast
+                .title
+                .map(|title| {
+                    text(title)
+                        .font(iced::Font {
+                            weight: iced::font::Weight::Bold,
+                            ..iced::Font::DEFAULT
+                        })
+                        .style(move |theme| {
+                            let toast_style = style_fn_title(theme);
+                            text::Style {
+                                color: toast_style.text_color,
+                            }
+                        })
+                        .size(text_size)
+                        .into()
                 })
-                .style(move |theme| {
-                    let toast_style = style_fn_title(theme);
-                    text::Style {
-                        color: toast_style.text_color,
-                    }
-                })
-                .size(text_size);
+                .unwrap_or(Space::new(0, 0).into());
 
             let style_fn_message = style_fn.clone().0;
             let message = text(toast.message)
@@ -175,8 +181,10 @@ where
             .style(move |theme| {
                 let toast_style = style_fn_left_border(theme);
 
-                let color =
-                    (toast_style.level_to_color)(&toast.level).unwrap_or(Color::TRANSPARENT);
+                let color = toast
+                    .level
+                    .map(|level| (toast_style.level_to_color)(&level).unwrap_or(Color::TRANSPARENT))
+                    .unwrap_or(Color::TRANSPARENT);
 
                 Border {
                     color,

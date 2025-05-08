@@ -2,7 +2,7 @@ use iced::{
     Element, Length, Theme,
     widget::{button, column, container, text},
 };
-use iced_toasts::{Id, ToastLevel, ToastManager};
+use iced_toasts::{ToastContainer, ToastId, ToastLevel, toast};
 
 pub fn main() -> iced::Result {
     iced::application("Toasts", App::update, App::view)
@@ -11,21 +11,21 @@ pub fn main() -> iced::Result {
 }
 
 struct App<'a, Message> {
-    toasts: ToastManager<'a, Message>,
+    toasts: ToastContainer<'a, Message>,
     toast_counter: usize,
 }
 
 #[derive(Debug, Clone, Copy)]
 enum Message {
     PushToast,
-    DismissToast(Id),
+    DismissToast(ToastId),
     ToastActioned(usize),
 }
 
 impl Default for App<'_, Message> {
     fn default() -> Self {
         Self {
-            toasts: ToastManager::new(Message::DismissToast)
+            toasts: ToastContainer::new(Message::DismissToast)
                 .alignment_x(iced_toasts::alignment::Horizontal::Left)
                 .alignment_y(iced_toasts::alignment::Vertical::Bottom)
                 .style(iced_toasts::style::rounded_box),
@@ -38,25 +38,33 @@ impl App<'_, Message> {
     fn update(&mut self, message: Message) {
         match message {
             Message::PushToast => {
-                // TODO: Expose this in a builder style
-                self.toasts.push_toast(
-                    ToastLevel::Success,
-                    "Success",
-                    &format!("Added a new toast! ({:?})", self.toast_counter),
-                    None,
+                self.toasts.push(
+                    toast(&format!("Added a new toast! ({:?})", self.toast_counter))
+                        .title("Success")
+                        .level(ToastLevel::Success),
                 );
                 self.toast_counter += 1;
 
-                self.toasts.push_toast(
-                    ToastLevel::Success,
-                    "Lesson: Working backwards, I was able to build up a clear set of limitations",
-                    &format!("Change the view to display a clickable button with text, that returns the message! Again, the code wasn't too hard to write, so went pretty fast. Imagine `limits` as the hard window size, constrained in addition by the containers size. We call `limits.resolve()` with container width and height, as well as size of contents. In some respect, a button is just a container layout-wise. If we are shrink in the cross axis, then we can take up as much height as we like (up to the limits of the row itself) ({:?})", self.toast_counter),
-                    Some(("Undo", Message::ToastActioned(self.toast_counter))),
+                // FIX: If a toast only has a message, make it display centered vertically.
+                self.toasts.push(
+                    toast(&format!(
+                        "This toast has no title! ({:?})",
+                        self.toast_counter
+                    ))
+                    .level(ToastLevel::Error),
+                );
+                self.toast_counter += 1;
+
+                self.toasts.push(
+                    toast(&format!("Change the view to display a clic;able button with text, that returns the message! Again, the code wasn't too hard to write, so went pretty fast. Imagine `limits` as the hard window size, constrained in addition by the containers size. We call `limits.resolve()` with container width and height, as well as size of contents. In some respect, a button is just a container layout-wise. If we are shrink in the cross axis, then we can take up as much height as we like (up to the limits of the row itself) ({:?})", self.toast_counter))
+                        .title("Lesson: Working backwards, I was able to build up a clear set of limitations",)
+                        .level(ToastLevel::Success)
+                        .action("Undo", Message::ToastActioned(self.toast_counter))
                 );
                 self.toast_counter += 1;
             }
             Message::DismissToast(id) => {
-                self.toasts.dismiss_toast(id);
+                self.toasts.dismiss(id);
             }
             Message::ToastActioned(value) => {
                 println!("Actioned! {value}")

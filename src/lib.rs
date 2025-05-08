@@ -17,10 +17,9 @@ use iced::{
     event, time, window,
 };
 
-// TODO: Think about the API.
-// E.g. Not everything in toast should be exposed, what derives should I expose, how should I name?
 mod toast;
-pub use toast::*;
+pub use toast::Id as ToastId;
+pub use toast::Level as ToastLevel;
 
 pub mod alignment {
 
@@ -59,11 +58,52 @@ pub mod alignment {
     }
 }
 
-pub struct ToastManager<'a, Message> {
-    toasts: Rc<RefCell<Vec<Toast<Message>>>>,
-    next_toast_id: Id,
+mod toast_builder {
+    use super::ToastLevel;
+
+    #[derive(Default)]
+    pub struct ToastBuilder<Message> {
+        pub(crate) message: String,
+        pub(crate) title: Option<String>,
+        pub(crate) level: Option<ToastLevel>,
+        pub(crate) action: Option<(String, Message)>,
+    }
+
+    pub fn toast<Message>(message: &str) -> ToastBuilder<Message> {
+        ToastBuilder {
+            message: message.to_string(),
+            title: None,
+            level: None,
+            action: None,
+        }
+    }
+
+    impl<Message> ToastBuilder<Message> {
+        pub fn title(mut self, title: &str) -> Self {
+            self.title = Some(title.to_string());
+            self
+        }
+
+        pub fn level(mut self, level: ToastLevel) -> Self {
+            self.level = Some(level);
+            self
+        }
+
+        pub fn action(mut self, text: &str, message: Message) -> Self {
+            self.action = Some((text.to_string(), message));
+            self
+        }
+    }
+}
+
+pub type Toast<Message> = toast_builder::ToastBuilder<Message>;
+pub use toast_builder::toast;
+
+pub struct ToastContainer<'a, Message> {
+    toasts: Rc<RefCell<Vec<toast::Toast<Message>>>>,
+    next_toast_id: ToastId,
     timeout_duration: time::Duration,
-    on_dismiss: Rc<Box<dyn Fn(Id) -> Message + 'a>>,
+    on_dismiss: Rc<Box<dyn Fn(ToastId) -> Message + 'a>>,
     alignment_x: alignment::Horizontal,
     alignment_y: alignment::Vertical,
     text_size: Pixels,
@@ -72,14 +112,14 @@ pub struct ToastManager<'a, Message> {
     // is hovered over the toasts.
 }
 
-impl<'a, Message> ToastManager<'a, Message>
+impl<'a, Message> ToastContainer<'a, Message>
 where
     Message: 'a + Clone + std::fmt::Debug,
 {
-    pub fn new(on_dismiss: impl Fn(Id) -> Message + 'a) -> Self {
-        ToastManager {
+    pub fn new(on_dismiss: impl Fn(ToastId) -> Message + 'a) -> Self {
+        ToastContainer {
             toasts: Rc::new(RefCell::new(Vec::new())),
-            next_toast_id: Id::new(),
+            next_toast_id: ToastId::new(),
             timeout_duration: time::Duration::new(5, 0),
             on_dismiss: Rc::new(Box::new(on_dismiss)),
             alignment_x: alignment::Horizontal::Right,
@@ -117,27 +157,21 @@ where
         self
     }
 
-    pub fn push_toast(
-        &mut self,
-        level: ToastLevel,
-        title: &str,
-        message: &str,
-        action: Option<(&str, Message)>,
-    ) {
-        self.toasts.borrow_mut().push(Toast {
+    pub fn push(&mut self, toast: Toast<Message>) {
+        self.toasts.borrow_mut().push(toast::Toast {
             id: self.next_toast_id,
             expiry: time::Instant::now() + self.timeout_duration,
-            level,
-            title: title.to_string(),
-            message: message.to_string(),
+            level: toast.level,
+            title: toast.title,
+            message: toast.message,
             on_dismiss: (self.on_dismiss)(self.next_toast_id),
-            action: action.map(|(text, message)| (text.to_string(), message)),
+            action: toast
+                .action
+                .map(|(text, message)| (text.to_string(), message)),
         });
-
-        self.next_toast_id = self.next_toast_id.next();
     }
 
-    pub fn dismiss_toast(&mut self, id: Id) {
+    pub fn dismiss(&mut self, id: ToastId) {
         self.toasts.borrow_mut().retain(|toast| toast.id != id);
     }
 
@@ -156,10 +190,10 @@ where
 
 pub struct ToastWidget<'a, Message> {
     content: Element<'a, Message>,
-    toasts: Rc<RefCell<Vec<Toast<Message>>>>,
+    toasts: Rc<RefCell<Vec<toast::Toast<Message>>>>,
     toast_elements: Vec<Element<'a, Message>>,
 
-    on_dismiss: Rc<Box<dyn Fn(Id) -> Message + 'a>>,
+    on_dismiss: Rc<Box<dyn Fn(ToastId) -> Message + 'a>>,
 
     alignment_x: alignment::Horizontal,
     alignment_y: alignment::Vertical,
@@ -170,9 +204,9 @@ where
     Message: 'a + Clone,
 {
     fn new(
-        toasts: Rc<RefCell<Vec<Toast<Message>>>>,
+        toasts: Rc<RefCell<Vec<toast::Toast<Message>>>>,
         content: impl Into<Element<'a, Message>>,
-        on_dismiss: Rc<Box<dyn Fn(Id) -> Message + 'a>>,
+        on_dismiss: Rc<Box<dyn Fn(ToastId) -> Message + 'a>>,
         alignment_x: alignment::Horizontal,
         alignment_y: alignment::Vertical,
         text_size: Pixels,
@@ -283,7 +317,7 @@ impl<Message> Widget<Message, Theme, Renderer> for ToastWidget<'_, Message> {
             self.toasts
                 .borrow()
                 .iter()
-                .for_each(|&Toast { id, expiry, .. }| {
+                .for_each(|&toast::Toast { id, expiry, .. }| {
                     if now > &expiry {
                         shell.publish((self.on_dismiss)(id));
                     } else {
@@ -358,7 +392,7 @@ impl<Message> Widget<Message, Theme, Renderer> for ToastWidget<'_, Message> {
 }
 
 struct Overlay<'a, 'b, Message> {
-    toasts: Rc<RefCell<Vec<Toast<Message>>>>,
+    toasts: Rc<RefCell<Vec<toast::Toast<Message>>>>,
     elements: &'b mut [Element<'a, Message>],
     state: &'b mut [Tree],
 
@@ -369,7 +403,7 @@ struct Overlay<'a, 'b, Message> {
 
 impl<'a, 'b, Message> Overlay<'a, 'b, Message> {
     fn new(
-        toasts: Rc<RefCell<Vec<Toast<Message>>>>,
+        toasts: Rc<RefCell<Vec<toast::Toast<Message>>>>,
         elements: &'b mut [Element<'a, Message>],
         state: &'b mut [Tree],
         position: Point,
@@ -524,7 +558,7 @@ impl<'a, Message> overlay::Overlay<Message, Theme, Renderer> for Overlay<'a, '_,
     }
 }
 
-pub type LevelToColorMap<'a> = Rc<dyn Fn(&ToastLevel) -> Option<Color> + 'a>;
+pub type LevelToColorMap<'a> = Rc<dyn Fn(&toast::Level) -> Option<Color> + 'a>;
 
 #[derive(Clone)]
 pub struct Style<'a> {
@@ -571,7 +605,7 @@ impl<'a> Style<'a> {
     /// Updates the mapping from toast levels to colors within [`Style`].
     pub fn level_to_color(
         self,
-        level_to_color: impl Fn(&ToastLevel) -> Option<Color> + 'a,
+        level_to_color: impl Fn(&toast::Level) -> Option<Color> + 'a,
     ) -> Self {
         Self {
             level_to_color: Rc::new(level_to_color),
@@ -596,11 +630,11 @@ impl<'a> Default for StyleFn<'a> {
                     radius: 0.0.into(),
                 },
                 shadow: Shadow::default(),
-                level_to_color: Rc::new(move |level: &ToastLevel| match level {
-                    ToastLevel::Info => Some(palette.primary.strong.color),
-                    ToastLevel::Success => Some(palette.success.strong.color),
-                    ToastLevel::Warning => Some(palette.danger.strong.color),
-                    ToastLevel::Error => Some(palette.danger.strong.color),
+                level_to_color: Rc::new(move |level: &toast::Level| match level {
+                    toast::Level::Info => Some(palette.primary.strong.color),
+                    toast::Level::Success => Some(palette.success.strong.color),
+                    toast::Level::Warning => Some(palette.danger.strong.color),
+                    toast::Level::Error => Some(palette.danger.strong.color),
                 }),
             }
         }))
