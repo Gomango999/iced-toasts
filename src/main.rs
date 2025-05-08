@@ -2,7 +2,7 @@ use iced::{
     Element, Length, Theme,
     widget::{button, column, container, text},
 };
-use iced_toasts::{Id, Kind, ToastManager};
+use iced_toasts::{Id, ToastLevel, ToastManager};
 
 pub fn main() -> iced::Result {
     iced::application("Toasts", App::update, App::view)
@@ -40,7 +40,7 @@ impl App<'_, Message> {
             Message::PushToast => {
                 // TODO: Expose this in a builder style
                 self.toasts.push_toast(
-                    Kind::Success,
+                    ToastLevel::Success,
                     "Success",
                     &format!("Added a new toast! ({:?})", self.toast_counter),
                     None,
@@ -48,7 +48,7 @@ impl App<'_, Message> {
                 self.toast_counter += 1;
 
                 self.toasts.push_toast(
-                    Kind::Success,
+                    ToastLevel::Success,
                     "Lesson: Working backwards, I was able to build up a clear set of limitations",
                     &format!("Change the view to display a clickable button with text, that returns the message! Again, the code wasn't too hard to write, so went pretty fast. Imagine `limits` as the hard window size, constrained in addition by the containers size. We call `limits.resolve()` with container width and height, as well as size of contents. In some respect, a button is just a container layout-wise. If we are shrink in the cross axis, then we can take up as much height as we like (up to the limits of the row itself) ({:?})", self.toast_counter),
                     Some(("Undo", Message::ToastActioned(self.toast_counter))),

@@ -119,7 +119,7 @@ where
 
     pub fn push_toast(
         &mut self,
-        kind: Kind,
+        level: ToastLevel,
         title: &str,
         message: &str,
         action: Option<(&str, Message)>,
@@ -127,7 +127,7 @@ where
         self.toasts.borrow_mut().push(Toast {
             id: self.next_toast_id,
             expiry: time::Instant::now() + self.timeout_duration,
-            kind,
+            level,
             title: title.to_string(),
             message: message.to_string(),
             on_dismiss: (self.on_dismiss)(self.next_toast_id),
@@ -524,7 +524,7 @@ impl<'a, Message> overlay::Overlay<Message, Theme, Renderer> for Overlay<'a, '_,
     }
 }
 
-pub type KindToColorMap<'a> = Rc<dyn Fn(&Kind) -> Option<Color> + 'a>;
+pub type LevelToColorMap<'a> = Rc<dyn Fn(&ToastLevel) -> Option<Color> + 'a>;
 
 #[derive(Clone)]
 pub struct Style<'a> {
@@ -532,7 +532,7 @@ pub struct Style<'a> {
     pub background: Option<Background>,
     pub border: Border,
     pub shadow: Shadow,
-    pub kind_to_color_map: KindToColorMap<'a>,
+    pub level_to_color: LevelToColorMap<'a>,
 }
 
 impl<'a> Style<'a> {
@@ -568,13 +568,13 @@ impl<'a> Style<'a> {
         }
     }
 
-    /// Updates the mapping from toast kinds to colors of the [`Style`].
-    pub fn kind_to_color_map(
+    /// Updates the mapping from toast levels to colors within [`Style`].
+    pub fn level_to_color(
         self,
-        kind_to_color_map: impl Fn(&Kind) -> Option<Color> + 'a,
+        level_to_color: impl Fn(&ToastLevel) -> Option<Color> + 'a,
     ) -> Self {
         Self {
-            kind_to_color_map: Rc::new(kind_to_color_map),
+            level_to_color: Rc::new(level_to_color),
             ..self
         }
     }
@@ -596,11 +596,11 @@ impl<'a> Default for StyleFn<'a> {
                     radius: 0.0.into(),
                 },
                 shadow: Shadow::default(),
-                kind_to_color_map: Rc::new(move |kind: &Kind| match kind {
-                    Kind::Info => Some(palette.primary.strong.color),
-                    Kind::Success => Some(palette.success.strong.color),
-                    Kind::Warning => Some(palette.danger.strong.color),
-                    Kind::Error => Some(palette.danger.strong.color),
+                level_to_color: Rc::new(move |level: &ToastLevel| match level {
+                    ToastLevel::Info => Some(palette.primary.strong.color),
+                    ToastLevel::Success => Some(palette.success.strong.color),
+                    ToastLevel::Warning => Some(palette.danger.strong.color),
+                    ToastLevel::Error => Some(palette.danger.strong.color),
                 }),
             }
         }))

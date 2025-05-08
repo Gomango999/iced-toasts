@@ -9,14 +9,14 @@ mod left_border;
 use left_border::left_border;
 
 #[derive(Clone, Copy, Debug)]
-pub enum Kind {
+pub enum ToastLevel {
     Info,
     Success,
     Warning,
     Error,
 }
 
-impl std::fmt::Display for Kind {
+impl std::fmt::Display for ToastLevel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
     }
@@ -40,7 +40,7 @@ pub struct Toast<Message> {
     pub id: Id,
     pub expiry: time::Instant,
 
-    pub kind: Kind,
+    pub level: ToastLevel,
     pub title: String,
     pub message: String,
 
@@ -176,7 +176,7 @@ where
                 let toast_style = style_fn_left_border(theme);
 
                 let color =
-                    (toast_style.kind_to_color_map)(&toast.kind).unwrap_or(Color::TRANSPARENT);
+                    (toast_style.level_to_color)(&toast.level).unwrap_or(Color::TRANSPARENT);
 
                 Border {
                     color,
