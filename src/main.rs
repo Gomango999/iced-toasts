@@ -1,11 +1,13 @@
 use iced::{
-    Element, Length,
+    Element, Length, Theme,
     widget::{button, column, container, text},
 };
 use iced_toasts::{Id, Level, ToastManager};
 
 pub fn main() -> iced::Result {
-    iced::run("Toasts", App::update, App::view)
+    iced::application("Toasts", App::update, App::view)
+        .theme(App::theme)
+        .run()
 }
 
 struct App<'a, Message> {
@@ -25,7 +27,8 @@ impl Default for App<'_, Message> {
         Self {
             toasts: ToastManager::new(Message::DismissToast)
                 .alignment_x(iced_toasts::alignment::Horizontal::Left)
-                .alignment_y(iced_toasts::alignment::Vertical::Bottom),
+                .alignment_y(iced_toasts::alignment::Vertical::Bottom)
+                .style(iced_toasts::style::rounded_box),
             toast_counter: 0,
         }
     }
@@ -35,11 +38,12 @@ impl App<'_, Message> {
     fn update(&mut self, message: Message) {
         match message {
             Message::PushToast => {
+                // TODO: Expose this in a builder style
                 self.toasts.push_toast(
                     Level::Success,
                     "Success",
                     &format!("Added a new toast! ({:?})", self.toast_counter),
-                    Some(("Undo", Message::ToastActioned(self.toast_counter))),
+                    None,
                 );
                 self.toast_counter += 1;
 
@@ -64,5 +68,9 @@ impl App<'_, Message> {
         let content = button(text("Add new toast!")).on_press(Message::PushToast);
         let content = container(column![content]).align_right(Length::Fill);
         self.toasts.view(content)
+    }
+
+    fn theme(&self) -> Theme {
+        Theme::CatppuccinFrappe
     }
 }

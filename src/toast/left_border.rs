@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use iced::{
     Border, Element, Event, Length, Rectangle, Renderer, Shadow, Size, Theme, Vector,
     advanced::{
@@ -7,34 +9,29 @@ use iced::{
     event, mouse, overlay,
 };
 
-// TODO: Support rounded and non-rounded corners
 pub struct LeftBorder<'a, Message> {
     width: Length,
     height: Length,
-    border: Option<Border>,
     content: Element<'a, Message, Theme, Renderer>,
+    style_fn: StyleFn<'a>,
 }
 
 pub fn left_border<'a, Message>(
     content: impl Into<Element<'a, Message>>,
-    border: Option<Border>,
 ) -> LeftBorder<'a, Message> {
-    LeftBorder::new(content, border)
+    LeftBorder::new(content)
 }
 
 impl<'a, Message> LeftBorder<'a, Message> {
-    pub fn new(
-        content: impl Into<Element<'a, Message, Theme, Renderer>>,
-        border: Option<Border>,
-    ) -> Self {
+    fn new(content: impl Into<Element<'a, Message, Theme, Renderer>>) -> Self {
         let content = content.into();
         let size = content.as_widget().size_hint();
 
         LeftBorder {
             width: size.width.fluid(),
             height: size.height.fluid(),
-            border,
             content,
+            style_fn: StyleFn::default(),
         }
     }
 
@@ -45,6 +42,11 @@ impl<'a, Message> LeftBorder<'a, Message> {
 
     pub fn height(mut self, height: impl Into<Length>) -> Self {
         self.height = height.into();
+        self
+    }
+
+    pub fn style(mut self, style_fn: impl Fn(&Theme) -> Border + 'a) -> Self {
+        self.style_fn = StyleFn(Rc::new(style_fn));
         self
     }
 }
@@ -167,9 +169,8 @@ where
     {
         let bounds = layout.bounds();
 
-        if let Some(border) = self.border {
-            draw_border(renderer, &border, bounds);
-        }
+        let border = self.style_fn.0(theme);
+        draw_border(renderer, &border, bounds);
 
         if let Some(clipped_viewport) = bounds.intersection(viewport) {
             self.content.as_widget().draw(
@@ -218,5 +219,14 @@ where
             },
             border.color,
         )
+    }
+}
+
+#[derive(Clone)]
+struct StyleFn<'a>(Rc<dyn Fn(&iced::Theme) -> Border + 'a>);
+
+impl<'a> Default for StyleFn<'a> {
+    fn default() -> Self {
+        StyleFn(Rc::new(|_theme: &iced::Theme| Border::default()))
     }
 }

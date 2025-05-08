@@ -2,13 +2,14 @@
 use std::{cell::RefCell, cmp, rc::Rc};
 
 use iced::{
-    Element, Event, Length, Padding, Point, Rectangle, Renderer, Size, Theme, Vector,
+    Background, Border, Color, Element, Event, Length, Padding, Pixels, Point, Rectangle, Renderer,
+    Shadow, Size, Theme, Vector,
     advanced::{
         Clipboard, Layout, Shell, Widget,
         layout::{self, Limits, Node, flex::Axis},
         mouse::{self, Cursor, Interaction},
         overlay,
-        renderer::Style,
+        renderer::{self},
         widget::{
             Operation, Tree,
             tree::{State, Tag},
@@ -66,6 +67,10 @@ pub struct ToastManager<'a, Message> {
     on_dismiss: Rc<Box<dyn Fn(Id) -> Message + 'a>>,
     alignment_x: alignment::Horizontal,
     alignment_y: alignment::Vertical,
+    text_size: Pixels,
+    style_fn: StyleFn<'a>,
+    // TODO: Add an option to disable extending the timeout when the mouse
+    // is hovered over the toasts.
 }
 
 impl<'a, Message> ToastManager<'a, Message>
@@ -80,18 +85,36 @@ where
             on_dismiss: Rc::new(Box::new(on_dismiss)),
             alignment_x: alignment::Horizontal::Right,
             alignment_y: alignment::Vertical::Bottom,
+            text_size: 16.into(),
+            style_fn: StyleFn::default(),
         }
     }
+
     pub fn alignment_x(mut self, alignment: alignment::Horizontal) -> Self {
         self.alignment_x = alignment;
         self
     }
+
     pub fn alignment_y(mut self, alignment: alignment::Vertical) -> Self {
         self.alignment_y = alignment;
         self
     }
+
     pub fn timeout(mut self, timeout: time::Duration) -> Self {
         self.timeout_duration = timeout;
+        self
+    }
+
+    /// Sets the text size of the toast. Default is 16.
+    pub fn size(mut self, size: impl Into<Pixels>) -> Self {
+        self.text_size = size.into();
+        self
+    }
+
+    /// Sets the style of the [`ToastManager`].
+    #[must_use]
+    pub fn style(mut self, style_fn: impl Fn(&iced::Theme) -> Style + 'a) -> Self {
+        self.style_fn = StyleFn(Rc::new(style_fn));
         self
     }
 
@@ -120,18 +143,19 @@ where
     }
 
     pub fn view(&self, content: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
-        Element::new(ToastWidget::new(
+        Element::new(ToastWidget::<'a, Message>::new(
             self.toasts.clone(),
             content,
             self.timeout_duration,
             self.on_dismiss.clone(),
             self.alignment_x,
             self.alignment_y,
+            self.text_size,
+            self.style_fn.clone(),
         ))
     }
 }
 
-// TODO: Add styling options
 pub struct ToastWidget<'a, Message> {
     content: Element<'a, Message>,
     toasts: Rc<RefCell<Vec<Toast<Message>>>>,
@@ -144,7 +168,10 @@ pub struct ToastWidget<'a, Message> {
     alignment_y: alignment::Vertical,
 }
 
-impl<'a, Message: 'a + Clone> ToastWidget<'a, Message> {
+impl<'a, Message> ToastWidget<'a, Message>
+where
+    Message: 'a + Clone,
+{
     fn new(
         toasts: Rc<RefCell<Vec<Toast<Message>>>>,
         content: impl Into<Element<'a, Message>>,
@@ -152,8 +179,14 @@ impl<'a, Message: 'a + Clone> ToastWidget<'a, Message> {
         on_dismiss: Rc<Box<dyn Fn(Id) -> Message + 'a>>,
         alignment_x: alignment::Horizontal,
         alignment_y: alignment::Vertical,
+        text_size: Pixels,
+        style_fn: StyleFn<'a>,
     ) -> Self {
-        let mut toast_elements: Vec<_> = toasts.borrow().iter().map(|toast| toast.into()).collect();
+        let mut toast_elements: Vec<_> = toasts
+            .borrow()
+            .iter()
+            .map(|toast| toast.view(text_size, style_fn.clone()))
+            .collect();
         if alignment_y == alignment::Vertical::Top {
             toast_elements.reverse()
         }
@@ -188,7 +221,7 @@ impl<Message> Widget<Message, Theme, Renderer> for ToastWidget<'_, Message> {
         tree: &Tree,
         renderer: &mut Renderer,
         theme: &Theme,
-        style: &Style,
+        style: &renderer::Style,
         layout: Layout<'_>,
         cursor: Cursor,
         viewport: &Rectangle,
@@ -381,14 +414,14 @@ impl<'a, Message> overlay::Overlay<Message, Theme, Renderer> for Overlay<'a, '_,
         &self,
         renderer: &mut Renderer,
         theme: &Theme,
-        style: &Style,
+        style: &renderer::Style,
         layout: Layout<'_>,
         cursor: Cursor,
     ) {
         let viewport = layout.bounds();
 
         // Reverse the iterator depending on whether the toasts display at the top
-        // of the screen or the bottom. Ideally, I'd just reverse the iterator only
+        // of the screen or the bottom. Ideally, I'd ;ust reverse the iterator only
         // but I can't since zips can't be reversed, and the iterators are
         // different types, so you get this ugly piece of code duplication.
         if self.alignment_y == alignment::Vertical::Bottom {
@@ -493,5 +526,104 @@ impl<'a, Message> overlay::Overlay<Message, Theme, Renderer> for Overlay<'a, '_,
         layout
             .children()
             .any(|layout| layout.bounds().contains(cursor_position))
+    }
+}
+
+pub type LevelColorMap<'a> = Rc<dyn Fn(&Level) -> Option<Color> + 'a>;
+
+#[derive(Clone)]
+pub struct Style<'a> {
+    pub text_color: Option<Color>,
+    pub background: Option<Background>,
+    pub border: Border,
+    pub shadow: Shadow,
+    pub level_color_map: LevelColorMap<'a>,
+}
+
+impl<'a> Style<'a> {
+    /// Updates the text color of the [`Style`].
+    pub fn color(self, color: impl Into<Color>) -> Self {
+        Self {
+            text_color: Some(color.into()),
+            ..self
+        }
+    }
+
+    /// Updates the border of the [`Style`].
+    pub fn border(self, border: impl Into<Border>) -> Self {
+        Self {
+            border: border.into(),
+            ..self
+        }
+    }
+
+    /// Updates the background of the [`Style`].
+    pub fn background(self, background: impl Into<Background>) -> Self {
+        Self {
+            background: Some(background.into()),
+            ..self
+        }
+    }
+
+    /// Updates the shadow of the [`Style`].
+    pub fn shadow(self, shadow: impl Into<Shadow>) -> Self {
+        Self {
+            shadow: shadow.into(),
+            ..self
+        }
+    }
+
+    /// Updates the mapping from levels to colors of the [`Style`].
+    pub fn level_color_map(self, level_color_map: impl Fn(&Level) -> Option<Color> + 'a) -> Self {
+        Self {
+            level_color_map: Rc::new(level_color_map),
+            ..self
+        }
+    }
+}
+
+#[derive(Clone)]
+struct StyleFn<'a>(Rc<dyn Fn(&iced::Theme) -> Style + 'a>);
+
+impl<'a> Default for StyleFn<'a> {
+    fn default() -> Self {
+        StyleFn(Rc::new(|theme: &iced::Theme| {
+            let palette = theme.extended_palette().clone();
+            Style {
+                text_color: Some(palette.background.base.text),
+                background: Some(palette.background.base.color.into()),
+                border: Border {
+                    color: palette.background.base.text,
+                    width: 1.0,
+                    radius: 0.0.into(),
+                },
+                shadow: Shadow::default(),
+                level_color_map: Rc::new(move |level: &Level| match level {
+                    Level::Info => Some(palette.primary.strong.color),
+                    Level::Success => Some(palette.success.strong.color),
+                    Level::Warning => Some(palette.danger.strong.color),
+                    Level::Error => Some(palette.danger.strong.color),
+                }),
+            }
+        }))
+    }
+}
+
+pub mod style {
+    use iced::Border;
+
+    pub fn default(theme: &iced::Theme) -> super::Style {
+        super::StyleFn::default().0(theme)
+    }
+
+    pub fn rounded_box(theme: &iced::Theme) -> super::Style {
+        let palette = theme.extended_palette();
+
+        let style = super::StyleFn::default().0(theme);
+        style.border(Border {
+            color: palette.background.base.text,
+            width: 1.0,
+            radius: 5.0.into(),
+        })
     }
 }

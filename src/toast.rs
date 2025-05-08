@@ -1,5 +1,7 @@
 use iced::{
-    Alignment, Border, Color, Element, Length, Padding, Theme, color, time,
+    Alignment, Border, Color, Element, Length, Padding, Pixels, Theme,
+    border::Radius,
+    time,
     widget::{Space, button, column, container, row, scrollable, text},
 };
 
@@ -42,37 +44,66 @@ pub struct Toast<Message> {
     pub title: String,
     pub message: String,
 
-    pub on_dismiss: Message,
+    // TODO: Someday, support having multiple action buttons
     pub action: Option<(String, Message)>,
+    pub on_dismiss: Message,
 }
 
-impl<'a, Message> From<&Toast<Message>> for Element<'a, Message>
+impl<'a, Message> Toast<Message>
 where
     Message: 'a + Clone,
 {
-    fn from(toast: &Toast<Message>) -> Self {
-        let toast = toast.clone();
+    pub(crate) fn view(
+        &self,
+        text_size: Pixels,
+        style_fn: super::StyleFn<'a>,
+    ) -> Element<'a, Message> {
+        let toast = self.clone();
 
-        let content: Element<Message> = container(scrollable(
-            column![
-                text(toast.title).font(iced::Font {
+        let content: Element<Message> = {
+            let style_fn_title = style_fn.clone().0;
+            let title = text(toast.title)
+                .font(iced::Font {
                     weight: iced::font::Weight::Bold,
                     ..iced::Font::DEFAULT
-                }),
-                text(toast.message)
-            ]
-            .padding(Padding::default().right(10)),
-        ))
-        .max_width(500)
-        .height(Length::Shrink)
-        .padding(Padding::from([5, 10]))
-        .into();
+                })
+                .style(move |theme| {
+                    let toast_style = style_fn_title(theme);
+                    text::Style {
+                        color: toast_style.text_color,
+                    }
+                })
+                .size(text_size);
+
+            let style_fn_message = style_fn.clone().0;
+            let message = text(toast.message)
+                .style(move |theme| {
+                    let toast_style = style_fn_message(theme);
+                    text::Style {
+                        color: toast_style.text_color,
+                    }
+                })
+                .size(text_size);
+
+            container(scrollable(
+                column![title, message].padding(Padding::default().right(10)),
+            ))
+            .max_width(500)
+            .height(Length::Shrink)
+            .padding(Padding {
+                top: 10.0,
+                right: 10.0,
+                bottom: 10.0,
+                left: 20.0,
+            })
+            .into()
+        };
 
         let action_button: Element<'a, Message> = toast
             .action
-            .map(|(button_text, message)| {
+            .map(|(button_str, message)| {
                 container(
-                    button(text(button_text))
+                    button(text(button_str).size(text_size))
                         .style(|theme: &Theme, status| {
                             let palette = theme.extended_palette();
 
@@ -118,9 +149,9 @@ where
 
                     button::Style {
                         background,
-                        text_color: Color::WHITE,
+                        text_color: palette.background.base.text,
                         border: iced::Border {
-                            color: Color::WHITE,
+                            color: Color::TRANSPARENT,
                             width: 0.0,
                             radius: 5.0.into(),
                         },
@@ -135,34 +166,43 @@ where
 
         let right_padding = Space::new(4, Length::Fixed(55.0));
 
-        let color = color!(0x228f65);
-        let border = Border {
-            color,
-            width: 2.0,
-            radius: 5.0.into(),
-        };
+        let style_fn_left_border = style_fn.clone().0;
+        let style_fn_container = style_fn.clone().0;
+        let toast_element: Element<Message> = container(
+            left_border(
+                row![content, action_button, dismiss_button, right_padding].height(Length::Shrink),
+            )
+            .style(move |theme| {
+                let toast_style = style_fn_left_border(theme);
 
-        let toast_element: Element<Message> = container(left_border(
-            row![content, action_button, dismiss_button, right_padding].height(Length::Shrink),
-            Some(border),
-        ))
+                let color =
+                    (toast_style.level_color_map)(&toast.level).unwrap_or(Color::TRANSPARENT);
+
+                Border {
+                    color,
+                    width: 3.0,
+                    radius: Radius {
+                        top_left: toast_style.border.radius.top_left,
+                        top_right: 0.0,
+                        bottom_right: 0.0,
+                        bottom_left: toast_style.border.radius.bottom_right,
+                    },
+                }
+            }),
+        )
         .max_height(240)
-        .style(|theme: &Theme| {
-            let palette = theme.extended_palette();
+        .style(move |theme: &Theme| {
+            let toast_style = style_fn_container(theme);
             container::Style {
-                background: Some(palette.background.base.color.into()),
-                border: iced::Border {
-                    color: palette.background.weak.color.into(),
-                    width: 1.0,
-                    radius: 5.0.into(),
-                },
-                ..container::Style::default()
+                text_color: toast_style.text_color,
+                background: toast_style.background,
+                border: toast_style.border,
+                shadow: toast_style.shadow,
             }
         })
         .clip(true)
         .into();
 
         toast_element
-        // toast_element.explain(Color::WHITE)
     }
 }
