@@ -145,7 +145,6 @@ where
         Element::new(ToastWidget::<'a, Message>::new(
             self.toasts.clone(),
             content,
-            self.timeout_duration,
             self.on_dismiss.clone(),
             self.alignment_x,
             self.alignment_y,
@@ -160,7 +159,6 @@ pub struct ToastWidget<'a, Message> {
     toasts: Rc<RefCell<Vec<Toast<Message>>>>,
     toast_elements: Vec<Element<'a, Message>>,
 
-    timeout: time::Duration,
     on_dismiss: Rc<Box<dyn Fn(Id) -> Message + 'a>>,
 
     alignment_x: alignment::Horizontal,
@@ -174,7 +172,6 @@ where
     fn new(
         toasts: Rc<RefCell<Vec<Toast<Message>>>>,
         content: impl Into<Element<'a, Message>>,
-        timeout_secs: time::Duration,
         on_dismiss: Rc<Box<dyn Fn(Id) -> Message + 'a>>,
         alignment_x: alignment::Horizontal,
         alignment_y: alignment::Vertical,
@@ -194,7 +191,6 @@ where
             content: content.into(),
             toasts,
             toast_elements,
-            timeout: timeout_secs,
             on_dismiss,
             alignment_x,
             alignment_y,
