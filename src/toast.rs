@@ -168,6 +168,7 @@ where
                 .on_press(toast.on_dismiss),
         )
         .center_y(Length::Fill)
+        .height(Length::Fixed(55.0))
         .into();
 
         let right_padding = Space::new(4, Length::Fixed(55.0));
