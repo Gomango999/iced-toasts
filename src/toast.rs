@@ -176,7 +176,9 @@ where
         let style_fn_container = style_fn.clone().0;
         let toast_element: Element<Message> = container(
             left_border(
-                row![content, action_button, dismiss_button, right_padding].height(Length::Shrink),
+                row![content, action_button, dismiss_button, right_padding]
+                    .height(Length::Shrink)
+                    .align_y(Alignment::Center),
             )
             .style(move |theme| {
                 let toast_style = style_fn_left_border(theme);

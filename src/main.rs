@@ -46,7 +46,6 @@ impl App<'_, Message> {
                 );
                 self.toast_counter += 1;
 
-                // FIX: If a toast only has a message, make it display centered vertically.
                 self.toasts.push(
                     toast(&format!(
                         "This toast has no title! ({:?})",
