@@ -112,11 +112,17 @@ pub struct ToastContainer<'a, Message> {
     // is hovered over the toasts.
 }
 
+pub fn toast_container<'a, Message: 'a + Clone + std::fmt::Debug>(
+    on_dismiss: impl Fn(ToastId) -> Message + 'a,
+) -> ToastContainer<'a, Message> {
+    ToastContainer::new(on_dismiss)
+}
+
 impl<'a, Message> ToastContainer<'a, Message>
 where
     Message: 'a + Clone + std::fmt::Debug,
 {
-    pub fn new(on_dismiss: impl Fn(ToastId) -> Message + 'a) -> Self {
+    fn new(on_dismiss: impl Fn(ToastId) -> Message + 'a) -> Self {
         ToastContainer {
             toasts: Rc::new(RefCell::new(Vec::new())),
             next_toast_id: ToastId::new(),

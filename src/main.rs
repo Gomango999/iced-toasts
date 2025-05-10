@@ -2,7 +2,7 @@ use iced::{
     Element, Length, Theme,
     widget::{button, column, container, text},
 };
-use iced_toasts::{ToastContainer, ToastId, ToastLevel, toast};
+use iced_toasts::{ToastContainer, ToastId, ToastLevel, toast, toast_container};
 
 pub fn main() -> iced::Result {
     iced::application("Toasts", App::update, App::view)
@@ -24,11 +24,12 @@ enum Message {
 
 impl Default for App<'_, Message> {
     fn default() -> Self {
+        let toasts = toast_container(Message::DismissToast)
+            .alignment_x(iced_toasts::alignment::Horizontal::Left)
+            .alignment_y(iced_toasts::alignment::Vertical::Bottom)
+            .style(iced_toasts::style::rounded_box);
         Self {
-            toasts: ToastContainer::new(Message::DismissToast)
-                .alignment_x(iced_toasts::alignment::Horizontal::Left)
-                .alignment_y(iced_toasts::alignment::Vertical::Bottom)
-                .style(iced_toasts::style::rounded_box),
+            toasts,
             toast_counter: 0,
         }
     }
