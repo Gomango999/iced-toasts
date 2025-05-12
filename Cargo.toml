@@ -8,7 +8,7 @@ repository = "https://github.com/Gomango999/iced-toasts"
 readme = "README.md"
 keywords = ["gui", "ui", "iced", "interface", "toasts", "notifications", "alert", "alarm"]
 categories = ["gui"]
-exclude = ["src/main.rs"]
+exclude = ["src/main.rs", "docs/"]
 
 [dependencies]
 iced = {version = "0.13.1", features = ["advanced"]}
