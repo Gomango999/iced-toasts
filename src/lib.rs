@@ -11,7 +11,13 @@
 //!
 //! # Example
 //! Here is a minimal example to push toasts to the screen
+//!
 //! ```rust
+//! use iced::{
+//!     Element,
+//!     widget::{button, text},
+//! };
+//!
 //! use iced_toasts::{ToastContainer, ToastId, ToastLevel, toast, toast_container};
 //!
 //! pub fn main() -> iced::Result {
@@ -54,8 +60,7 @@
 //!
 //!     fn view(&self) -> Element<Message> {
 //!         let toast_button = button(text("Add new toast!")).on_press(Message::PushToast);
-//!         let content = container(toast_button);
-//!         self.toasts.view(content)
+//!         self.toasts.view(toast_button)
 //!     }
 //! }
 //! ```

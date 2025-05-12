@@ -24,7 +24,7 @@ enum Message {
 
 impl Default for App<'_, Message> {
     fn default() -> Self {
-        let toasts = toast_container(Message::DismissToast).style(iced_toasts::style::square_box);
+        let toasts = toast_container(Message::DismissToast);
 
         Self {
             toasts,
@@ -37,30 +37,30 @@ impl App<'_, Message> {
     fn update(&mut self, message: Message) {
         match message {
             Message::PushToast => {
+                self.toasts.push(
+                    toast("File \"image (3).jpeg\" has been removed")
+                        .title("Success")
+                        .level(ToastLevel::Success)
+                        .action("Undo", Message::ToastActioned(0)),
+                );
+
                 // self.toasts.push(
-                //     toast("File \"image (3).jpeg\" has been removed")
-                //         .title("Success")
-                //         .level(ToastLevel::Success)
-                //         .action("Undo", Message::ToastActioned(0)),
+                //     toast("An iced toast notification add-on")
+                //         .title("Iced Toasts")
+                //         .level(ToastLevel::Info),
                 // );
 
-                self.toasts.push(
-                    toast("An iced toast notification add-on")
-                        .title("Iced Toasts")
-                        .level(ToastLevel::Info),
-                );
+                // self.toasts.push(
+                //     toast("An iced toast notification add-on")
+                //         .title("Iced Toasts")
+                //         .level(ToastLevel::Success),
+                // );
 
-                self.toasts.push(
-                    toast("An iced toast notification add-on")
-                        .title("Iced Toasts")
-                        .level(ToastLevel::Success),
-                );
-
-                self.toasts.push(
-                    toast("An iced toast notification add-on")
-                        .title("Iced Toasts")
-                        .level(ToastLevel::Error),
-                );
+                // self.toasts.push(
+                //     toast("An iced toast notification add-on")
+                //         .title("Iced Toasts")
+                //         .level(ToastLevel::Error),
+                // );
 
                 // self.toasts.push(
                 //     toast(&format!("This is a toast! ({:?})", self.toast_counter))
@@ -101,6 +101,6 @@ impl App<'_, Message> {
     }
 
     fn theme(&self) -> Theme {
-        Theme::CatppuccinLatte
+        Theme::CatppuccinFrappe
     }
 }
