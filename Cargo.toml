@@ -6,7 +6,7 @@ edition = "2024"
 license = "MIT"
 repository = "https://github.com/Gomango999/iced-toasts"
 readme = "README.md"
-keywords = ["gui", "ui", "iced", "interface", "toasts", "notifications", "alert", "alarm"]
+keywords = ["gui", "ui", "iced", "toasts", "notifications"]
 categories = ["gui"]
 exclude = ["src/main.rs", "docs/"]
 
