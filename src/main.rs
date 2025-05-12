@@ -24,7 +24,7 @@ enum Message {
 
 impl Default for App<'_, Message> {
     fn default() -> Self {
-        let toasts = toast_container(Message::DismissToast);
+        let toasts = toast_container(Message::DismissToast).style(iced_toasts::style::square_box);
 
         Self {
             toasts,
@@ -37,29 +37,54 @@ impl App<'_, Message> {
     fn update(&mut self, message: Message) {
         match message {
             Message::PushToast => {
+                // self.toasts.push(
+                //     toast("File \"image (3).jpeg\" has been removed")
+                //         .title("Success")
+                //         .level(ToastLevel::Success)
+                //         .action("Undo", Message::ToastActioned(0)),
+                // );
+
                 self.toasts.push(
-                    toast(&format!("This is a toast! ({:?})", self.toast_counter))
-                        .title("Wow!")
+                    toast("An iced toast notification add-on")
+                        .title("Iced Toasts")
+                        .level(ToastLevel::Info),
+                );
+
+                self.toasts.push(
+                    toast("An iced toast notification add-on")
+                        .title("Iced Toasts")
                         .level(ToastLevel::Success),
                 );
-                self.toast_counter += 1;
 
                 self.toasts.push(
-                    toast(&format!(
-                        "This toast has no title! ({:?})",
-                        self.toast_counter
-                    ))
-                    .level(ToastLevel::Error),
+                    toast("An iced toast notification add-on")
+                        .title("Iced Toasts")
+                        .level(ToastLevel::Error),
                 );
-                self.toast_counter += 1;
 
-                self.toasts.push(
-                    toast(&format!("Change the view to display a clic;able button with text, that returns the message! Again, the code wasn't too hard to write, so went pretty fast. Imagine `limits` as the hard window size, constrained in addition by the containers size. We call `limits.resolve()` with container width and height, as well as size of contents. In some respect, a button is just a container layout-wise. If we are shrink in the cross axis, then we can take up as much height as we like (up to the limits of the row itself) ({:?})", self.toast_counter))
-                        .title("Lesson: Working backwards, I was able to build up a clear set of limitations",)
-                        .level(ToastLevel::Success)
-                        .action("Undo", Message::ToastActioned(self.toast_counter))
-                );
-                self.toast_counter += 1;
+                // self.toasts.push(
+                //     toast(&format!("This is a toast! ({:?})", self.toast_counter))
+                //         .title("Wow!")
+                //         .level(ToastLevel::Success),
+                // );
+                // self.toast_counter += 1;
+
+                // self.toasts.push(
+                //     toast(&format!(
+                //         "This toast has no title! ({:?})",
+                //         self.toast_counter
+                //     ))
+                //     .level(ToastLevel::Error),
+                // );
+                // self.toast_counter += 1;
+
+                // self.toasts.push(
+                //     toast(&format!("Change the view to display a clic;able button with text, that returns the message! Again, the code wasn't too hard to write, so went pretty fast. Imagine `limits` as the hard window size, constrained in addition by the containers size. We call `limits.resolve()` with container width and height, as well as size of contents. In some respect, a button is ;ust a container layout-wise. If we are shrink in the cross axis, then we can take up as much height as we like (up to the limits of the row itself) ({:?})", self.toast_counter))
+                //         .title("Lesson: Working backwards, I was able to build up a clear set of limitations",)
+                //         .level(ToastLevel::Success)
+                //         .action("Undo", Message::ToastActioned(self.toast_counter))
+                // );
+                // self.toast_counter += 1;
             }
             Message::DismissToast(id) => {
                 self.toasts.dismiss(id);
@@ -76,6 +101,6 @@ impl App<'_, Message> {
     }
 
     fn theme(&self) -> Theme {
-        Theme::CatppuccinFrappe
+        Theme::CatppuccinLatte
     }
 }

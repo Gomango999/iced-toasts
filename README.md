@@ -3,12 +3,17 @@
 which provides a simple way to add toast notifications. It is inspired by
 [`examples/toast`](https://github.com/iced-rs/iced/tree/master/examples/toast).
 
+![Toasts Dark](https://raw.githubusercontent.com/gomango999/iced-toasts/main/docs/images/toasts_both.png)
+![Toasts Light](https://raw.githubusercontent.com/gomango999/iced-toasts/main/docs/images/toasts_both_light.png)
+
 ## Features
 In addition to the features of the example iced toast code, this create supports:
 
 - Optional title, level and action buttons
 - Styling and positioning options
 - Toasts will not automatically disappear if being actively hovered over
+
+![Toasts](https://raw.githubusercontent.com/gomango999/iced-toasts/main/docs/images/toast_action.png)
 
 ## Example
 Here is a minimal example to push toasts to the screen.
@@ -88,9 +93,7 @@ fn update(&mut self, message: Message) {
 ```
 
 ## Styling
-Toasts appear on the bottom right with rounded corners by default. We can
-change the alignment and size using builder methods when initialising
-`ToastContainer`.
+Toasts appear on the bottom right with rounded corners by default, and will adjust the colours according to the current theme. We can change the alignment and size using builder methods when initialising `ToastContainer`.
 
 ```rust
 use iced_toasts::{toast_container, alignment};
@@ -118,3 +121,12 @@ let toasts = toast_container(Message::DismissToast)
         }
     });
 ```
+
+iced toasts has rounded toasts by default, but provides a premade style function for square borders as well.
+
+```rust
+let toasts = toast_container(Message::DismissToast)
+    .style(iced_toasts::style::square_box);
+```
+
+<!-- TODO: Add images for action buttons and styling. -->
