@@ -1,3 +1,122 @@
+//! `iced_toasts` is an add-on crate to the [iced](https://iced.rs/) GUI library,
+//! which provides a simple way to add toast notifications. It is inspired by
+//! [`examples/toast`](https://github.com/iced-rs/iced/tree/master/examples/toast).
+//!
+//! # Features
+//! In addition to the features of the example iced toast code, this create supports:
+//!
+//! - Optional title, level and action buttons
+//! - Styling and positioning options
+//! - Toasts will not automatically disappear if being actively hovered over
+//!
+//! # Example
+//! Here is a minimal example to push toasts to the screen
+//! ```
+//! use iced_toasts::{ToastContainer, ToastId, ToastLevel, toast, toast_container};
+//!
+//! pub fn main() -> iced::Result {
+//!     iced::run("Iced Toasts Example", App::update, App::view)
+//! }
+//!
+//! struct App<'a, Message> {
+//!     toasts: ToastContainer<'a, Message>,
+//! }
+//!
+//! #[derive(Debug, Clone, Copy)]
+//! enum Message {
+//!     PushToast,
+//!     DismissToast(ToastId),
+//! }
+//!
+//! impl Default for App<'_, Message> {
+//!     fn default() -> Self {
+//!         Self {
+//!             toasts: toast_container(Message::DismissToast),
+//!         }
+//!     }
+//! }
+//!
+//! impl App<'_, Message> {
+//!     fn update(&mut self, message: Message) {
+//!         match message {
+//!             Message::PushToast => {
+//!                 self.toasts.push(
+//!                     toast("Added a new toast!")
+//!                         .title("Success")
+//!                         .level(ToastLevel::Success),
+//!                 );
+//!             }
+//!             Message::DismissToast(id) => {
+//!                 self.toasts.dismiss(id);
+//!             }
+//!         }
+//!     }
+//!
+//!     fn view(&self) -> Element<Message> {
+//!         let toast_button = button(text("Add new toast!")).on_press(Message::PushToast);
+//!         let content = container(toast_button);
+//!         self.toasts.view(content)
+//!     }
+//! }
+//! ```
+//!
+//! # Action Buttons
+//! iced_toasts allows you to add an optional action button to each toast, which
+//! will broadcast a user-defined message if pressed.
+//!
+//! ```ignore
+//! enum Message {
+//!     RemoveFile(usize),
+//!     UndoFileRemoval(usize),
+//! }
+//!
+//! fn update(&mut self, message: Message) {
+//!     match message {
+//!         RemoveFile(file_id) => {
+//!             self.toasts.push(
+//!                 toast(&format!("File removed ({})", file_id))
+//!                 .level(ToastLevel::Success)
+//!                 .action("Undo", Message::UndoFileRemoval(file_id))
+//!             );
+//!         },
+//!         UndoFileRemoval(file_id) => {
+//!             println!("File removal undone!")
+//!         }
+//!     }
+//! ```
+//!
+//! # Styling
+//! Toasts appear on the bottom right with rounded corners by default. We can
+//! change the alignment and size using builder methods when initialising
+//! [`ToastContainer`].
+//!
+//! ```
+//! use iced_toasts::{toast_container, alignment};
+//!
+//! let toasts = toast_container(Message::DismissToast)
+//!     .alignment_x(alignment::Horizontal::Left)
+//!     .alignment_y(alignment::Vertical::Bottom)
+//!     .size(24);
+//! ```
+//!
+//! For more fine tuned styling of the appearance of individual toasts, we can
+//! call the `style` method. This behaves similarly to styles in iced, as it
+//! takes a reference to a theme and returns the [`Style`] struct.
+//! ```
+//!
+//! let toasts = toast_container(Message::DismissToast)
+//!     .style(|theme| {
+//!         let palette = theme.extended_palette();
+//!         iced_toasts::Style {
+//!             text_color: Some(palette.background.base.text),
+//!             background: None,
+//!             border: Border::default(),
+//!             shadow: Shadow::default(),
+//!             level_to_color: Rc::new(|_level| None),
+//!         }
+//!     });
+//! ```
+
 use std::{cell::RefCell, cmp, rc::Rc};
 
 use iced::{
@@ -22,7 +141,10 @@ pub use toast::Id as ToastId;
 pub use toast::Level as ToastLevel;
 
 pub mod alignment {
+    //! This module provides some structs for choosing where toasts will display
+    //! on-screen.
 
+    /// The horizontal position of toasts on the screen
     #[derive(Copy, Clone, Debug, PartialEq)]
     pub enum Horizontal {
         Left,
@@ -41,6 +163,7 @@ pub mod alignment {
         }
     }
 
+    /// The vertical position of toasts on the screen
     #[derive(Copy, Clone, Debug, PartialEq)]
     pub enum Vertical {
         Top,
@@ -69,6 +192,18 @@ mod toast_builder {
         pub(crate) action: Option<(String, Message)>,
     }
 
+    /// Starts building a new toast with the provided message. Optional fields can
+    /// be added using builder-style methods suhc as [`title`], [`level`], and [`action`]
+    ///
+    /// # Example
+    /// ```ignore
+    /// use iced_toasts::ToastLevel;
+    ///
+    /// toast("New file created")
+    ///     .title("Success")
+    ///     .level(ToastLevel::Success)
+    ///     .action("Undo", Message::UndoFile);
+    /// ```
     pub fn toast<Message>(message: &str) -> ToastBuilder<Message> {
         ToastBuilder {
             message: message.to_string(),
@@ -79,16 +214,26 @@ mod toast_builder {
     }
 
     impl<Message> ToastBuilder<Message> {
+        /// Adds an optional title to `Toast`.
+        ///
+        /// If not set, the toast will have no title.
         pub fn title(mut self, title: &str) -> Self {
             self.title = Some(title.to_string());
             self
         }
 
+        /// Adds an optional level to `Toast`.
+        ///
+        /// If not set, the toast will not have a colored border.
         pub fn level(mut self, level: ToastLevel) -> Self {
             self.level = Some(level);
             self
         }
 
+        /// Adds an optional action button to `Toast`.
+        ///
+        /// `text`` is displayed on the button, and `message` is broadcast when
+        /// the action button is pressed.
         pub fn action(mut self, text: &str, message: Message) -> Self {
             self.action = Some((text.to_string(), message));
             self
@@ -99,6 +244,9 @@ mod toast_builder {
 pub type Toast<Message> = toast_builder::ToastBuilder<Message>;
 pub use toast_builder::toast;
 
+/// A component responsible for managing the state of toasts. This should be
+/// created using [`toast_container()`] during the initialisation of the
+/// iced application.
 pub struct ToastContainer<'a, Message> {
     toasts: Rc<RefCell<Vec<toast::Toast<Message>>>>,
     next_toast_id: ToastId,
@@ -112,6 +260,13 @@ pub struct ToastContainer<'a, Message> {
     // is hovered over the toasts.
 }
 
+/// Creates a new [`ToastContainer`], which is responsible for managing the
+/// state and appearance of toasts. You can configure [`ToastContainer`] by
+/// chaining builder methods, and get the associated [`Element`] using
+/// [`ToastContainer::view()`].
+///
+/// The message produced by `on_dismiss(ToastId)` is broadcasted whenever the user
+/// clicks the dismiss button on a toast.
 pub fn toast_container<'a, Message: 'a + Clone + std::fmt::Debug>(
     on_dismiss: impl Fn(ToastId) -> Message + 'a,
 ) -> ToastContainer<'a, Message> {
@@ -135,16 +290,20 @@ where
         }
     }
 
+    /// Sets the horizontal position at which the toasts will appear.
     pub fn alignment_x(mut self, alignment: alignment::Horizontal) -> Self {
         self.alignment_x = alignment;
         self
     }
 
+    /// Sets the vertical position at which the toasts will appear.
     pub fn alignment_y(mut self, alignment: alignment::Vertical) -> Self {
         self.alignment_y = alignment;
         self
     }
 
+    /// Sets the amount of time toasts have before they disappear. Default is 5
+    /// seconds.
     pub fn timeout(mut self, timeout: time::Duration) -> Self {
         self.timeout_duration = timeout;
         self
@@ -156,13 +315,13 @@ where
         self
     }
 
-    /// Sets the style of the [`ToastManager`].
-    #[must_use]
+    /// Sets the style of the [`ToastContainer`].
     pub fn style(mut self, style_fn: impl Fn(&iced::Theme) -> Style + 'a) -> Self {
         self.style_fn = StyleFn(Rc::new(style_fn));
         self
     }
 
+    /// Displays a new toast on-screen.
     pub fn push(&mut self, toast: Toast<Message>) {
         self.toasts.borrow_mut().push(toast::Toast {
             id: self.next_toast_id,
@@ -177,10 +336,16 @@ where
         });
     }
 
+    /// Dismisses a toast. Should be called with the corresponding [`ToastId`]
+    /// whenever the `on_dismiss` message is received.
     pub fn dismiss(&mut self, id: ToastId) {
         self.toasts.borrow_mut().retain(|toast| toast.id != id);
     }
 
+    /// Creates the [`Element`] for the [`ToastContainer`] to be used in the
+    /// application view function. [`ToastContainer`] acts as a container, and
+    /// the `content` passed in will display as normal, with any toasts overlaid
+    /// on top.
     pub fn view(&self, content: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
         Element::new(ToastWidget::<'a, Message>::new(
             self.toasts.clone(),
@@ -194,6 +359,8 @@ where
     }
 }
 
+// The [`Widget`] reponsible for displaying toasts. It is responsible for expiring
+// toasts at the correct time.
 pub struct ToastWidget<'a, Message> {
     content: Element<'a, Message>,
     toasts: Rc<RefCell<Vec<toast::Toast<Message>>>>,
@@ -327,6 +494,10 @@ impl<Message> Widget<Message, Theme, Renderer> for ToastWidget<'_, Message> {
                     if now > &expiry {
                         shell.publish((self.on_dismiss)(id));
                     } else {
+                        // If we do not expire a toast now, we guarantee that
+                        // there will be another redraw request at the time
+                        // the toast expires, so that this handler will be
+                        // called again at that time.
                         let request = window::RedrawRequest::At(expiry);
                         shell.request_redraw(request);
                     }
@@ -456,7 +627,7 @@ impl<'a, Message> overlay::Overlay<Message, Theme, Renderer> for Overlay<'a, '_,
         let viewport = layout.bounds();
 
         // Reverse the iterator depending on whether the toasts display at the top
-        // of the screen or the bottom. Ideally, I'd ;ust reverse the iterator only
+        // of the screen or the bottom. Ideally, I'd just reverse the iterator only
         // but I can't since zips can't be reversed, and the iterators are
         // different types, so you get this ugly piece of code duplication.
         if self.alignment_y == alignment::Vertical::Bottom {
@@ -484,7 +655,7 @@ impl<'a, Message> overlay::Overlay<Message, Theme, Renderer> for Overlay<'a, '_,
             }
         }
         // SOMEDAY: Make toasts not draw if they cannot fit. Currently, they
-        // just shrink in size and display a some of it's elements. Perhaps
+        // just shrink in size and display some of it's elements. Perhaps
         // implement a queue system so that cut off toasts still have a
         // chance to display later.
     }
@@ -564,14 +735,23 @@ impl<'a, Message> overlay::Overlay<Message, Theme, Renderer> for Overlay<'a, '_,
     }
 }
 
-pub type LevelToColorMap<'a> = Rc<dyn Fn(&toast::Level) -> Option<Color> + 'a>;
+/// Defines a mapping from [`ToastLevel`] to a color that will be used to display
+/// on the border of toasts.
+pub type LevelToColorMap<'a> = Rc<dyn Fn(&ToastLevel) -> Option<Color> + 'a>;
 
+/// Defines the styles toasts created by a `ToastContainer`
 #[derive(Clone)]
 pub struct Style<'a> {
+    /// The color of the toast text
     pub text_color: Option<Color>,
+    /// The background of the toast
     pub background: Option<Background>,
+    /// The border of the entire toast
     pub border: Border,
+    /// The shadow of the toast
     pub shadow: Shadow,
+    /// A mapping from [`ToastLevel`] to colors, which determine color
+    /// the left-border of the toast
     pub level_to_color: LevelToColorMap<'a>,
 }
 
@@ -633,7 +813,7 @@ impl<'a> Default for StyleFn<'a> {
                 border: Border {
                     color: palette.background.base.text,
                     width: 1.0,
-                    radius: 0.0.into(),
+                    radius: 5.0.into(),
                 },
                 shadow: Shadow::default(),
                 level_to_color: Rc::new(move |level: &toast::Level| match level {
@@ -650,18 +830,21 @@ impl<'a> Default for StyleFn<'a> {
 pub mod style {
     use iced::Border;
 
+    /// The default style function of a toast. This contains rounded corners and
+    /// uses the colors defined in `theme`.
     pub fn default(theme: &iced::Theme) -> super::Style {
         super::StyleFn::default().0(theme)
     }
 
-    pub fn rounded_box(theme: &iced::Theme) -> super::Style {
+    /// Same as the default style, but with square corners.
+    pub fn square_box(theme: &iced::Theme) -> super::Style {
         let palette = theme.extended_palette();
 
         let style = super::StyleFn::default().0(theme);
         style.border(Border {
             color: palette.background.base.text,
             width: 1.0,
-            radius: 5.0.into(),
+            radius: 0.0.into(),
         })
     }
 }

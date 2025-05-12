@@ -1,3 +1,6 @@
+//! This module defines a custom [`LeftBorder`] widget which defines a container
+//! like widget with a left-border.
+
 use std::rc::Rc;
 
 use iced::{

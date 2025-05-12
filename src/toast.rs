@@ -1,3 +1,5 @@
+//! This module defines the toast element and how it should display on-screen.
+
 use iced::{
     Alignment, Border, Color, Element, Length, Padding, Pixels, Theme,
     border::Radius,
@@ -8,6 +10,7 @@ use iced::{
 mod left_border;
 use left_border::left_border;
 
+/// The type of a toast. Used to determine what color the toast should be.
 #[derive(Clone, Copy, Debug)]
 pub enum Level {
     Info,
@@ -22,6 +25,7 @@ impl std::fmt::Display for Level {
     }
 }
 
+/// A unique identifier for a toast, up to its [`ToastContainer`].
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
 pub struct Id(usize);
 
@@ -35,6 +39,7 @@ impl Id {
     }
 }
 
+/// A toast notification to be displayed on screen. Can be created with `toast()`
 #[derive(Clone, Debug)]
 pub struct Toast<Message> {
     pub id: Id,
@@ -53,11 +58,7 @@ impl<'a, Message> Toast<Message>
 where
     Message: 'a + Clone,
 {
-    pub(crate) fn view(
-        &self,
-        text_size: Pixels,
-        style_fn: super::StyleFn<'a>,
-    ) -> Element<'a, Message> {
+    pub fn view(&self, text_size: Pixels, style_fn: super::StyleFn<'a>) -> Element<'a, Message> {
         let toast = self.clone();
 
         let content: Element<Message> = {

@@ -1,6 +1,6 @@
 use iced::{
-    Element, Length, Theme,
-    widget::{button, column, container, text},
+    Element, Theme,
+    widget::{button, text},
 };
 use iced_toasts::{ToastContainer, ToastId, ToastLevel, toast, toast_container};
 
@@ -24,10 +24,8 @@ enum Message {
 
 impl Default for App<'_, Message> {
     fn default() -> Self {
-        let toasts = toast_container(Message::DismissToast)
-            .alignment_x(iced_toasts::alignment::Horizontal::Left)
-            .alignment_y(iced_toasts::alignment::Vertical::Bottom)
-            .style(iced_toasts::style::rounded_box);
+        let toasts = toast_container(Message::DismissToast);
+
         Self {
             toasts,
             toast_counter: 0,
@@ -40,8 +38,8 @@ impl App<'_, Message> {
         match message {
             Message::PushToast => {
                 self.toasts.push(
-                    toast(&format!("Added a new toast! ({:?})", self.toast_counter))
-                        .title("Success")
+                    toast(&format!("This is a toast! ({:?})", self.toast_counter))
+                        .title("Wow!")
                         .level(ToastLevel::Success),
                 );
                 self.toast_counter += 1;
@@ -73,9 +71,8 @@ impl App<'_, Message> {
     }
 
     fn view(&self) -> Element<Message> {
-        let content = button(text("Add new toast!")).on_press(Message::PushToast);
-        let content = container(column![content]).align_right(Length::Fill);
-        self.toasts.view(content)
+        let toast_button = button(text("Add new toast!")).on_press(Message::PushToast);
+        self.toasts.view(toast_button)
     }
 
     fn theme(&self) -> Theme {
