@@ -26,7 +26,7 @@ impl std::fmt::Display for Level {
 }
 
 /// A unique identifier for a toast, up to its [`ToastContainer`].
-#[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Id(usize);
 
 impl Id {

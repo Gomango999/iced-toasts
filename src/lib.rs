@@ -11,7 +11,7 @@
 //!
 //! # Example
 //! Here is a minimal example to push toasts to the screen
-//! ```
+//! ```rust
 //! use iced_toasts::{ToastContainer, ToastId, ToastLevel, toast, toast_container};
 //!
 //! pub fn main() -> iced::Result {
@@ -90,8 +90,12 @@
 //! change the alignment and size using builder methods when initialising
 //! [`ToastContainer`].
 //!
-//! ```
-//! use iced_toasts::{toast_container, alignment};
+//! ```rust
+//! use iced_toasts::{toast_container, alignment, ToastId};
+//!
+//! enum Message {
+//!     DismissToast(ToastId),
+//! }
 //!
 //! let toasts = toast_container(Message::DismissToast)
 //!     .alignment_x(alignment::Horizontal::Left)
@@ -102,7 +106,13 @@
 //! For more fine tuned styling of the appearance of individual toasts, we can
 //! call the `style` method. This behaves similarly to styles in iced, as it
 //! takes a reference to a theme and returns the [`Style`] struct.
-//! ```
+//!
+//! ```rust
+//! use iced_toasts::{toast_container, alignment, ToastId};
+//!
+//! enum Message {
+//!     DismissToast(ToastId),
+//! }
 //!
 //! let toasts = toast_container(Message::DismissToast)
 //!     .style(|theme| {
@@ -184,7 +194,7 @@ pub mod alignment {
 mod toast_builder {
     use super::ToastLevel;
 
-    #[derive(Default)]
+    #[derive(Default, Clone, Debug)]
     pub struct ToastBuilder<Message> {
         pub(crate) message: String,
         pub(crate) title: Option<String>,
@@ -196,13 +206,17 @@ mod toast_builder {
     /// be added using builder-style methods suhc as [`title`], [`level`], and [`action`]
     ///
     /// # Example
-    /// ```ignore
-    /// use iced_toasts::ToastLevel;
+    /// ```rust
+    /// use iced_toasts::{toast, ToastLevel};
+    ///
+    /// enum Message {
+    ///     UndoFileCreation,
+    /// }
     ///
     /// toast("New file created")
     ///     .title("Success")
     ///     .level(ToastLevel::Success)
-    ///     .action("Undo", Message::UndoFile);
+    ///     .action("Undo", Message::UndoFileCreation);
     /// ```
     pub fn toast<Message>(message: &str) -> ToastBuilder<Message> {
         ToastBuilder {
@@ -247,6 +261,14 @@ pub use toast_builder::toast;
 /// A component responsible for managing the state of toasts. This should be
 /// created using [`toast_container()`] during the initialisation of the
 /// iced application.
+///
+/// # Example
+/// ```rust
+/// enum Message {
+///     DismissToast(ToastId),
+/// }
+/// let toasts = toast_container(Message::DismissToast);
+/// ```
 pub struct ToastContainer<'a, Message> {
     toasts: Rc<RefCell<Vec<toast::Toast<Message>>>>,
     next_toast_id: ToastId,
@@ -267,6 +289,15 @@ pub struct ToastContainer<'a, Message> {
 ///
 /// The message produced by `on_dismiss(ToastId)` is broadcasted whenever the user
 /// clicks the dismiss button on a toast.
+///
+/// # Example
+/// ```rust
+/// enum Message {
+///     DismissToast(ToastId),
+/// }
+///
+/// let toasts = toast_container(Message::DismissToast);
+/// ```
 pub fn toast_container<'a, Message: 'a + Clone + std::fmt::Debug>(
     on_dismiss: impl Fn(ToastId) -> Message + 'a,
 ) -> ToastContainer<'a, Message> {
@@ -346,6 +377,15 @@ where
     /// application view function. [`ToastContainer`] acts as a container, and
     /// the `content` passed in will display as normal, with any toasts overlaid
     /// on top.
+    ///
+    /// # Example
+    /// In the view function of the application:
+    /// ```ignore
+    /// fn view(&self) -> Element<Message> {
+    ///    let toast_button = button(text("Add new toast!")).on_press(Message::PushToast);
+    ///    self.toasts.view(toast_button)
+    /// }
+    /// ```
     pub fn view(&self, content: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
         Element::new(ToastWidget::<'a, Message>::new(
             self.toasts.clone(),
@@ -359,9 +399,25 @@ where
     }
 }
 
+impl<'a, Message> std::fmt::Debug for ToastContainer<'a, Message>
+where
+    Message: 'a + std::fmt::Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ToastContainer")
+            .field("toasts", &self.toasts)
+            .field("next_toast_id", &self.next_toast_id)
+            .field("timeout_duration", &self.timeout_duration)
+            .field("alignment_x", &self.alignment_x)
+            .field("alignment_y", &self.alignment_y)
+            .field("text_size", &self.text_size)
+            .finish()
+    }
+}
+
 // The [`Widget`] reponsible for displaying toasts. It is responsible for expiring
 // toasts at the correct time.
-pub struct ToastWidget<'a, Message> {
+struct ToastWidget<'a, Message> {
     content: Element<'a, Message>,
     toasts: Rc<RefCell<Vec<toast::Toast<Message>>>>,
     toast_elements: Vec<Element<'a, Message>>,
@@ -797,6 +853,17 @@ impl<'a> Style<'a> {
             level_to_color: Rc::new(level_to_color),
             ..self
         }
+    }
+}
+
+impl std::fmt::Debug for Style<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Style")
+            .field("text_color", &self.text_color)
+            .field("background", &self.background)
+            .field("border", &self.border)
+            .field("shadow", &self.shadow)
+            .finish()
     }
 }
 

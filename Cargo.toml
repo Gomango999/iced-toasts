@@ -1,7 +1,13 @@
 [package]
 name = "iced_toasts"
+description = "An add-on crate for iced that provides toast notifications"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
+repository = "https://github.com/Gomango999/iced-toasts"
+readme = "README.md"
+keywords = ["gui", "ui", "iced", "interface", "toasts", "notifications", "alert", "alarm"]
+categories = ["gui"]
 
 [dependencies]
 iced = {version = "0.13.1", features = ["advanced"]}
