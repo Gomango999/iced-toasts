@@ -67,6 +67,8 @@ impl App<'_, Message> {
 }
 ```
 
+<!-- TODO: Write this in a more step by step manner, similar to the iced documentation. -->
+
 ## Action Buttons
 iced_toasts allows you to add an optional action button to each toast, which
 will broadcast a user-defined message if pressed.

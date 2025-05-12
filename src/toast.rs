@@ -49,7 +49,7 @@ pub struct Toast<Message> {
     pub title: Option<String>,
     pub message: String,
 
-    // SOMEDAY: Support having multiple action buttons
+    // TODO: Support having multiple action buttons
     pub action: Option<(String, Message)>,
     pub on_dismiss: Message,
 }

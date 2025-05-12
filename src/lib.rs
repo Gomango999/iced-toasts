@@ -278,7 +278,7 @@ pub struct ToastContainer<'a, Message> {
     alignment_y: alignment::Vertical,
     text_size: Pixels,
     style_fn: StyleFn<'a>,
-    // SOMEDAY: Add an option to disable extending the timeout when the mouse
+    // TODO: Add an option to disable extending the timeout when the mouse
     // is hovered over the toasts.
 }
 
@@ -710,7 +710,7 @@ impl<'a, Message> overlay::Overlay<Message, Theme, Renderer> for Overlay<'a, '_,
                     .draw(state, renderer, theme, style, layout, cursor, &viewport)
             }
         }
-        // SOMEDAY: Make toasts not draw if they cannot fit. Currently, they
+        // TODO: Make toasts not draw if they cannot fit. Currently, they
         // just shrink in size and display some of it's elements. Perhaps
         // implement a queue system so that cut off toasts still have a
         // chance to display later.
