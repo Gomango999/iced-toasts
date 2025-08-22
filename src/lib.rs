@@ -568,7 +568,7 @@ impl<Message> Widget<Message, Theme, Renderer> for ToastWidget<'_, Message> {
         self.content.as_widget_mut().on_event(
             &mut tree.children[0],
             event,
-            layout,
+            layout.children().next().unwrap(),
             cursor,
             renderer,
             clipboard,
@@ -587,7 +587,7 @@ impl<Message> Widget<Message, Theme, Renderer> for ToastWidget<'_, Message> {
     ) -> Interaction {
         self.content.as_widget().mouse_interaction(
             &state.children[0],
-            layout,
+            layout.children().next().unwrap(),
             cursor,
             viewport,
             renderer,

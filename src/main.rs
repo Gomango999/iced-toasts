@@ -1,6 +1,6 @@
 use iced::{
     Element, Theme,
-    widget::{button, text},
+    widget::{button, column, text},
 };
 use iced_toasts::{ToastContainer, ToastId, ToastLevel, toast, toast_container};
 
@@ -17,6 +17,8 @@ struct App<'a, Message> {
 
 #[derive(Debug, Clone, Copy)]
 enum Message {
+    FirstButton,
+    SecondButton,
     PushToast,
     DismissToast(ToastId),
     ToastActioned(usize),
@@ -92,12 +94,21 @@ impl App<'_, Message> {
             Message::ToastActioned(value) => {
                 println!("Actioned! {value}")
             }
+            Message::FirstButton => println!("First button!"),
+            Message::SecondButton => println!("Second button!"),
         }
     }
 
     fn view(&self) -> Element<Message> {
-        let toast_button = button(text("Add new toast!")).on_press(Message::PushToast);
-        self.toasts.view(toast_button)
+        // let toast_button = button(text("Add new toast!")).on_press(Message::PushToast);
+        // self.toasts.view(toast_button)
+
+        let view = column![
+            button("First button").on_press(Message::FirstButton),
+            "text",
+            button("Second button").on_press(Message::SecondButton),
+        ];
+        self.toasts.view(view)
     }
 
     fn theme(&self) -> Theme {
