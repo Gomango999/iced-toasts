@@ -35,6 +35,7 @@ impl Default for App<'_, Message> {
     }
 }
 
+// TODO: Move this to an examples directory
 impl App<'_, Message> {
     fn update(&mut self, message: Message) {
         match message {

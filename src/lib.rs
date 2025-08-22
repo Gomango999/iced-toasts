@@ -420,6 +420,8 @@ where
     }
 }
 
+// TODO: Move `ToastWidget` to it's own file
+
 // The [`Widget`] reponsible for displaying toasts. It is responsible for expiring
 // toasts at the correct time.
 struct ToastWidget<'a, Message> {
