@@ -359,13 +359,15 @@ where
 
     /// Displays a new toast on-screen.
     pub fn push(&mut self, toast: Toast<Message>) {
+        let id = self.next_toast_id;
+        self.next_toast_id = self.next_toast_id.next();
         self.toasts.borrow_mut().push(toast::Toast {
-            id: self.next_toast_id,
+            id,
             expiry: time::Instant::now() + self.timeout_duration,
             level: toast.level,
             title: toast.title,
             message: toast.message,
-            on_dismiss: (self.on_dismiss)(self.next_toast_id),
+            on_dismiss: (self.on_dismiss)(id),
             action: toast
                 .action
                 .map(|(text, message)| (text.to_string(), message)),
