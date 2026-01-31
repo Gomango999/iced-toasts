@@ -148,7 +148,7 @@ use iced::{
             tree::{State, Tag},
         },
     },
-    event, time, window,
+    time, window,
 };
 
 mod toast;
@@ -475,10 +475,10 @@ impl<Message> Widget<Message, Theme, Renderer> for ToastWidget<'_, Message> {
         self.content.as_widget().size()
     }
 
-    fn layout(&self, tree: &mut Tree, renderer: &Renderer, limits: &Limits) -> Node {
+    fn layout(&mut self, tree: &mut Tree, renderer: &Renderer, limits: &Limits) -> Node {
         layout::contained(limits, Length::Shrink, Length::Shrink, |limits| {
             self.content
-                .as_widget()
+                .as_widget_mut()
                 .layout(&mut tree.children[0], renderer, limits)
         })
     }
@@ -527,30 +527,34 @@ impl<Message> Widget<Message, Theme, Renderer> for ToastWidget<'_, Message> {
     }
 
     fn operate(
-        &self,
+        &mut self,
         state: &mut Tree,
         layout: Layout<'_>,
         renderer: &Renderer,
         operation: &mut dyn Operation,
     ) {
-        operation.container(None, layout.bounds(), &mut |operation| {
-            self.content
-                .as_widget()
-                .operate(&mut state.children[0], layout, renderer, operation);
+        operation.container(None, layout.bounds());
+        operation.traverse(&mut |operation| {
+            self.content.as_widget_mut().operate(
+                &mut state.children[0],
+                layout,
+                renderer,
+                operation,
+            );
         });
     }
 
-    fn on_event(
+    fn update(
         &mut self,
         tree: &mut Tree,
-        event: Event,
+        event: &Event,
         layout: Layout<'_>,
         cursor: mouse::Cursor,
         renderer: &Renderer,
         clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
-    ) -> event::Status {
+    ) {
         if let Event::Window(window::Event::RedrawRequested(now)) = &event {
             self.toasts
                 .borrow()
@@ -563,13 +567,12 @@ impl<Message> Widget<Message, Theme, Renderer> for ToastWidget<'_, Message> {
                         // there will be another redraw request at the time
                         // the toast expires, so that this handler will be
                         // called again at that time.
-                        let request = window::RedrawRequest::At(expiry);
-                        shell.request_redraw(request);
+                        shell.request_redraw_at(expiry);
                     }
                 });
         }
 
-        self.content.as_widget_mut().on_event(
+        self.content.as_widget_mut().update(
             &mut tree.children[0],
             event,
             layout.children().next().unwrap(),
@@ -601,8 +604,9 @@ impl<Message> Widget<Message, Theme, Renderer> for ToastWidget<'_, Message> {
     fn overlay<'a>(
         &'a mut self,
         state: &'a mut Tree,
-        layout: Layout<'_>,
+        layout: Layout<'a>,
         renderer: &Renderer,
+        viewport: &Rectangle,
         translation: iced::Vector,
     ) -> Option<overlay::Element<'a, Message, Theme, Renderer>> {
         let (content_state, toast_state) = state.children.split_at_mut(1);
@@ -610,6 +614,7 @@ impl<Message> Widget<Message, Theme, Renderer> for ToastWidget<'_, Message> {
             &mut content_state[0],
             layout,
             renderer,
+            viewport,
             translation,
         );
 
@@ -725,25 +730,21 @@ impl<'a, Message> overlay::Overlay<Message, Theme, Renderer> for Overlay<'a, '_,
         // chance to display later.
     }
 
-    fn on_event(
+    fn update(
         &mut self,
-        event: Event,
+        event: &Event,
         layout: Layout<'_>,
         cursor: mouse::Cursor,
         renderer: &Renderer,
         clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
-    ) -> iced::event::Status {
+    ) {
         // This function will always be called right before
-        // `ToastWidget::on_event`. This means that right before a toast is
+        // `ToastWidget::update`. This means that right before a toast is
         // considered for expiry as part of as `RedrawRequested`` event, we
         // will always be able to check if we are hovering the toasts and update
         // expiry time before the toast actually expires.
-        let is_hovering_toasts = if let mouse::Cursor::Available(cursor_position) = cursor {
-            self.is_over(layout, renderer, cursor_position)
-        } else {
-            false
-        };
+        let is_hovering_toasts = cursor.is_over(layout.bounds());
         if is_hovering_toasts {
             self.toasts.borrow_mut().iter_mut().for_each(|toast| {
                 let now = time::Instant::now();
@@ -753,31 +754,23 @@ impl<'a, Message> overlay::Overlay<Message, Theme, Renderer> for Overlay<'a, '_,
         }
 
         let viewport = layout.bounds();
-
         self.elements
             .iter_mut()
             .zip(self.state.iter_mut())
             .zip(layout.children())
-            .map(|((child, state), layout)| {
-                child.as_widget_mut().on_event(
-                    state,
-                    event.clone(),
-                    layout,
-                    cursor,
-                    renderer,
-                    clipboard,
-                    shell,
-                    &viewport,
-                )
-            })
-            .fold(event::Status::Ignored, event::Status::merge)
+            .for_each(|((child, state), layout)| {
+                child.as_widget_mut().update(
+                    state, event, layout, cursor, renderer, clipboard, shell, &viewport,
+                );
+            });
+
+        ()
     }
 
     fn mouse_interaction(
         &self,
         layout: Layout<'_>,
         cursor: mouse::Cursor,
-        viewport: &Rectangle,
         renderer: &Renderer,
     ) -> mouse::Interaction {
         self.elements
@@ -785,18 +778,16 @@ impl<'a, Message> overlay::Overlay<Message, Theme, Renderer> for Overlay<'a, '_,
             .zip(self.state.iter())
             .zip(layout.children())
             .map(|((child, state), layout)| {
-                child
-                    .as_widget()
-                    .mouse_interaction(state, layout, cursor, viewport, renderer)
+                child.as_widget().mouse_interaction(
+                    state,
+                    layout,
+                    cursor,
+                    &layout.bounds(),
+                    renderer,
+                )
             })
             .max()
             .unwrap_or_default()
-    }
-
-    fn is_over(&self, layout: Layout<'_>, _renderer: &Renderer, cursor_position: Point) -> bool {
-        layout
-            .children()
-            .any(|layout| layout.bounds().contains(cursor_position))
     }
 }
 
@@ -908,12 +899,12 @@ pub mod style {
 
     /// The default style function of a toast. This contains rounded corners and
     /// uses the colors defined in `theme`.
-    pub fn default(theme: &iced::Theme) -> super::Style {
+    pub fn default(theme: &iced::Theme) -> super::Style<'_> {
         super::StyleFn::default().0(theme)
     }
 
     /// Same as the default style, but with square corners.
-    pub fn square_box(theme: &iced::Theme) -> super::Style {
+    pub fn square_box(theme: &iced::Theme) -> super::Style<'_> {
         let palette = theme.extended_palette();
 
         let style = super::StyleFn::default().0(theme);

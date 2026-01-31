@@ -80,7 +80,7 @@ where
                         .size(text_size)
                         .into()
                 })
-                .unwrap_or(Space::new(0, 0).into());
+                .unwrap_or(Space::new().into());
 
             let style_fn_message = style_fn.clone().0;
             let message = text(toast.message)
@@ -139,7 +139,7 @@ where
                 .height(Length::Fill)
                 .into()
             })
-            .unwrap_or_else(|| Space::new(0, 0).into());
+            .unwrap_or_else(|| Space::new().into());
 
         let dismiss_button: Element<Message> = container(
             button(text("×").size(28))
@@ -172,7 +172,7 @@ where
         .height(Length::Fixed(55.0))
         .into();
 
-        let right_padding = Space::new(4, Length::Fixed(55.0));
+        let right_padding = Space::new().width(4).height(Length::Fixed(55.0));
 
         let style_fn_left_border = style_fn.clone().0;
         let style_fn_container = style_fn.clone().0;
@@ -210,6 +210,7 @@ where
                 background: toast_style.background,
                 border: toast_style.border,
                 shadow: toast_style.shadow,
+                snap: false,
             }
         })
         .clip(true)

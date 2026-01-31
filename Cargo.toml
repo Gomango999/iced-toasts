@@ -11,5 +11,5 @@ categories = ["gui"]
 exclude = ["src/main.rs", "docs/"]
 
 [dependencies]
-iced = {version = "0.13.1", features = ["advanced"]}
+iced = {version = "0.14.0", features = ["advanced"]}
 

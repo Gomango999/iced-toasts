@@ -1,3 +1,7 @@
+## [0.1.3] - 2026-01-31
+### Added
+- Updated support for iced 0.14.0
+
 ## [0.1.2] - 2025-11-23
 ### Fixed
 - Fixed bug causing incorrect closing one toast to close all toasts. (Credit: j-lohuis)

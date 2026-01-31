@@ -9,7 +9,7 @@ use iced::{
         Clipboard, Layout, Shell, Widget, layout, renderer,
         widget::{Operation, Tree, tree},
     },
-    event, mouse, overlay,
+    mouse, overlay,
 };
 
 pub struct LeftBorder<'a, Message> {
@@ -91,25 +91,26 @@ where
     }
 
     fn layout(
-        &self,
+        &mut self,
         tree: &mut Tree,
         renderer: &Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
         layout::contained(&limits, self.width, self.height, |limits| {
-            self.content.as_widget().layout(tree, renderer, limits)
+            self.content.as_widget_mut().layout(tree, renderer, limits)
         })
     }
 
     fn operate(
-        &self,
+        &mut self,
         tree: &mut Tree,
         layout: Layout<'_>,
         renderer: &Renderer,
         operation: &mut dyn Operation,
     ) {
-        operation.container(None, layout.bounds(), &mut |operation| {
-            self.content.as_widget().operate(
+        operation.container(None, layout.bounds());
+        operation.traverse(&mut |operation| {
+            self.content.as_widget_mut().operate(
                 tree,
                 layout.children().next().unwrap(),
                 renderer,
@@ -118,18 +119,18 @@ where
         });
     }
 
-    fn on_event(
+    fn update(
         &mut self,
         tree: &mut Tree,
-        event: Event,
+        event: &Event,
         layout: Layout<'_>,
         cursor: mouse::Cursor,
         renderer: &Renderer,
         clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
-    ) -> event::Status {
-        self.content.as_widget_mut().on_event(
+    ) {
+        self.content.as_widget_mut().update(
             tree,
             event,
             layout.children().next().unwrap(),
@@ -193,14 +194,16 @@ where
     fn overlay<'b>(
         &'b mut self,
         tree: &'b mut Tree,
-        layout: Layout<'_>,
+        layout: Layout<'b>,
         renderer: &Renderer,
+        viewport: &Rectangle,
         translation: Vector,
     ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
         self.content.as_widget_mut().overlay(
             tree,
             layout.children().next().unwrap(),
             renderer,
+            viewport,
             translation,
         )
     }
@@ -219,6 +222,7 @@ where
                 },
                 border: border.clone(),
                 shadow: Shadow::default(),
+                snap: false,
             },
             border.color,
         )
