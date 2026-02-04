@@ -476,11 +476,9 @@ impl<Message> Widget<Message, Theme, Renderer> for ToastWidget<'_, Message> {
     }
 
     fn layout(&mut self, tree: &mut Tree, renderer: &Renderer, limits: &Limits) -> Node {
-        layout::contained(limits, Length::Shrink, Length::Shrink, |limits| {
-            self.content
-                .as_widget_mut()
-                .layout(&mut tree.children[0], renderer, limits)
-        })
+        self.content
+            .as_widget_mut()
+            .layout(&mut tree.children[0], renderer, limits)
     }
 
     fn draw(
@@ -498,10 +496,10 @@ impl<Message> Widget<Message, Theme, Renderer> for ToastWidget<'_, Message> {
             renderer,
             theme,
             style,
-            layout.children().next().unwrap(),
+            layout,
             cursor,
             viewport,
-        )
+        );
     }
 
     fn tag(&self) -> Tag {
@@ -528,7 +526,7 @@ impl<Message> Widget<Message, Theme, Renderer> for ToastWidget<'_, Message> {
 
     fn operate(
         &mut self,
-        state: &mut Tree,
+        tree: &mut Tree,
         layout: Layout<'_>,
         renderer: &Renderer,
         operation: &mut dyn Operation,
@@ -536,7 +534,7 @@ impl<Message> Widget<Message, Theme, Renderer> for ToastWidget<'_, Message> {
         operation.container(None, layout.bounds());
         operation.traverse(&mut |operation| {
             self.content.as_widget_mut().operate(
-                &mut state.children[0],
+                &mut tree.children[0],
                 layout,
                 renderer,
                 operation,
@@ -575,7 +573,7 @@ impl<Message> Widget<Message, Theme, Renderer> for ToastWidget<'_, Message> {
         self.content.as_widget_mut().update(
             &mut tree.children[0],
             event,
-            layout.children().next().unwrap(),
+            layout,
             cursor,
             renderer,
             clipboard,
@@ -586,15 +584,15 @@ impl<Message> Widget<Message, Theme, Renderer> for ToastWidget<'_, Message> {
 
     fn mouse_interaction(
         &self,
-        state: &Tree,
+        tree: &Tree,
         layout: Layout<'_>,
         cursor: Cursor,
         viewport: &Rectangle,
         renderer: &Renderer,
     ) -> Interaction {
         self.content.as_widget().mouse_interaction(
-            &state.children[0],
-            layout.children().next().unwrap(),
+            &tree.children[0],
+            layout,
             cursor,
             viewport,
             renderer,
